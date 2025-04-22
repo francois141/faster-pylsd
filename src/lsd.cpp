@@ -1,7 +1,5 @@
 #include "helpers.h"
 
-using namespace std;
-
 /*----------------------------------------------------------------------------*/
 /*---------------------------------- Regions ---------------------------------*/
 /*----------------------------------------------------------------------------*/
@@ -501,7 +499,6 @@ double *LineSegmentDetection(int *n_out,
                              double * modgrad_ptr, double * angles_ptr,
                              int **reg_img, int *reg_x, int *reg_y) {
   image_double image;
-  ntuple_list out = new_ntuple_list(7);
   double *return_value;
   image_double scaled_image;
   image_char used;
@@ -587,29 +584,30 @@ double *LineSegmentDetection(int *n_out,
   if (reg == nullptr) error("not enough memory!");
 
 
-  vector<point> point_values;
+  std::vector<point> point_values;
   for (; list_p != nullptr; list_p = list_p->next) {
     point_values.push_back(point{list_p->x, list_p->y});
   }
 
-  const unsigned int numberThreads = 16;
+  const unsigned int numberThreads = 64;
 
-  vector<point*> registers_vector(numberThreads);
+  std::vector<point*> registers_vector(numberThreads);
   for(int i = 0; i < numberThreads;i++) {
     registers_vector[i] = static_cast<point *>(calloc((xsize * ysize), sizeof(point)));
   }
 
   const int currSize = point_values.size();
   int slot = currSize / numberThreads;
-  vector<pair<int,int>> indices;
+  std::vector<std::pair<int,int>> indices;
   for(int i = 0; i < numberThreads;i++) {
-    indices.push_back(make_pair(slot * i, slot * (i+1)));
+    indices.push_back(std::make_pair(slot * i, slot * (i+1)));
   }
 
   auto start = std::chrono::high_resolution_clock::now();
 
   /* search for line segments */
-  function<void(int)> worker = [&](int index) {
+  std::function<std::vector<double>(int)> worker = [&](int index) {
+    std::vector<double> output;
   for (int i = indices[index].first; i < indices[index].second;i++) {
     auto current_point = point_values[i];
     if (used->data[current_point.x + current_point.y * used->xsize] == NOTUSED &&
@@ -632,19 +630,6 @@ double *LineSegmentDetection(int *n_out,
       /* construct rectangular approximation for the region */
       region2rect(registers_vector[index], reg_size, modgrad, reg_angle, prec, p, &rec);
 
-      /* Check if the rectangle exceeds the minimal density of
-         region points. If not, try to improve the region.
-         The rectangle will be rejected if the final one does
-         not fulfill the minimal density condition.
-         This is an addition to the original LSD algorithm published in
-         "LSD: A Fast Line Segment Detector with a False Detection Control"
-         by R. Grompone von Gioi, J. Jakubowicz, J.M. Morel, and G. Randall.
-         The original algorithm is obtained with density_th = 0.0.
-       */
-      // if (!refine(reg, &reg_size, modgrad, reg_angle,
-      //             prec, p, &rec, used, angles, density_th))
-      //   continue;
-
       /* compute NFA value */
       if(grad_nfa)
         log_nfa = rect_improve(&rec, img_grad_angle, logNT, log_eps);
@@ -664,26 +649,46 @@ double *LineSegmentDetection(int *n_out,
         rec.width /= scale;
       }
 
-      /* add line segment found to output */
-      add_7tuple(out, rec.x1, rec.y1, rec.x2, rec.y2,
-                 rec.width, rec.p, log_nfa);
-
       /* add region number to 'region' image if needed */
       if (region != nullptr)
         for (i = 0; i < reg_size; i++)
           region->data[reg[i].x + reg[i].y * region->xsize] = ls_count;
+
+      /* add line segment found to output */
+      output.push_back(rec.x1);
+      output.push_back(rec.y1);
+      output.push_back(rec.x2);
+      output.push_back(rec.y2);
+      output.push_back(rec.width);
+      output.push_back(rec.p);
+      output.push_back(log_nfa);
     }
    }
+
+   return output;
   };
 
-  vector<thread> threads(numberThreads);
+  std::vector<std::future<std::vector<double>>> futures(numberThreads);
   for(int i = 0; i < numberThreads;i++) {
-    threads[i] = thread(worker, i);
+    futures[i] = std::async(std::launch::async,worker, i);
   }
 
+  std::vector<std::vector<double>> values(numberThreads);
   for(int i = 0; i < numberThreads;i++) {
-    threads[i].join();
+    values[i] = futures[i].get();
   }
+
+  *n_out = 0;
+  for(std::vector<double> &points: values) *n_out += points.size();
+
+  double* buffer = static_cast<double*>(malloc(*n_out * sizeof(double)));
+
+  size_t idx = 0;
+  for(std::vector<double> &points: values) {
+    for(double entry: points) {
+      buffer[idx++] = entry;
+    }
+  } 
 
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> duration = end - start;
@@ -721,16 +726,9 @@ double *LineSegmentDetection(int *n_out,
        the memory with the image data to be returned by this function. */
     free((void *) region);
   }
-  if (out->size > (unsigned int) INT_MAX)
-    error("too many detections to fit in an INT.");
-  *n_out = (int) (out->size);
 
-  return_value = out->values;
-  free((void *) out);  /* only the 'ntuple_list' structure must be freed,
-                            but the 'values' pointer must be keep to return
-                            as a result. */
-
-  return return_value;
+  *n_out /= 7;
+  return buffer;
 }
 
 /*----------------------------------------------------------------------------*/

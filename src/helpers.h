@@ -100,13 +100,15 @@
 #include <climits>
 #include <cfloat>
 #include <iostream>
-#include "lsd.h"
 #include <assert.h>
 #include <vector>
 #include <algorithm>
 #include <thread>
 #include <chrono>
-using namespace std;
+#include <functional>
+#include <future>
+
+#include "lsd.h"
 
 /** ln(10) */
 #ifndef M_LN10
@@ -213,123 +215,6 @@ static int double_equal(double a, double b) {
 static double dist(double x1, double y1, double x2, double y2) {
   return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
 }
-
-
-/*----------------------------------------------------------------------------*/
-/*----------------------- 'list of n-tuple' data type ------------------------*/
-/*----------------------------------------------------------------------------*/
-
-/*----------------------------------------------------------------------------*/
-/** 'list of n-tuple' data type
-
-    The i-th component of the j-th n-tuple of an n-tuple list 'ntl'
-    is accessed with:
-
-      ntl->values[ i + j * ntl->dim ]
-
-    The dimension of the n-tuple (n) is:
-
-      ntl->dim
-
-    The number of n-tuples in the list is:
-
-      ntl->size
-
-    The maximum number of n-tuples that can be stored in the
-    list with the allocated memory at a given time is given by:
-
-      ntl->max_size
- */
-typedef struct ntuple_list_s {
-  unsigned int size;
-  unsigned int max_size;
-  unsigned int dim;
-  double *values;
-} *ntuple_list;
-
-/*----------------------------------------------------------------------------*/
-/** Free memory used in n-tuple 'in'.
- */
-static void free_ntuple_list(ntuple_list in) {
-  if (in == nullptr || in->values == nullptr)
-    error("free_ntuple_list: invalid n-tuple input.");
-  free((void *) in->values);
-  free((void *) in);
-}
-
-/*----------------------------------------------------------------------------*/
-/** Create an n-tuple list and allocate memory for one element.
-    @param dim the dimension (n) of the n-tuple.
- */
-static ntuple_list new_ntuple_list(unsigned int dim) {
-  ntuple_list n_tuple;
-
-  /* check parameters */
-  if (dim == 0) error("new_ntuple_list: 'dim' must be positive.");
-
-  /* get memory for list structure */
-  n_tuple = (ntuple_list) malloc(sizeof(struct ntuple_list_s));
-  if (n_tuple == nullptr) error("not enough memory.");
-
-  /* initialize list */
-  n_tuple->size = 0;
-  n_tuple->max_size = 1;
-  n_tuple->dim = dim;
-
-  /* get memory for tuples */
-  n_tuple->values = (double *) malloc(dim * n_tuple->max_size * sizeof(double));
-  if (n_tuple->values == nullptr) error("not enough memory.");
-
-  return n_tuple;
-}
-
-/*----------------------------------------------------------------------------*/
-/** Enlarge the allocated memory of an n-tuple list.
- */
-static void enlarge_ntuple_list(ntuple_list n_tuple) {
-  /* check parameters */
-  if (n_tuple == nullptr || n_tuple->values == nullptr || n_tuple->max_size == 0)
-    error("enlarge_ntuple_list: invalid n-tuple.");
-
-  /* duplicate number of tuples */
-  n_tuple->max_size *= 2;
-
-  /* realloc memory */
-  n_tuple->values = (double *) realloc((void *) n_tuple->values,
-                                       n_tuple->dim * n_tuple->max_size * sizeof(double));
-  if (n_tuple->values == nullptr) error("not enough memory.");
-}
-#include <mutex>
-std::mutex lock_list;
-
-/*----------------------------------------------------------------------------*/
-/** Add a 7-tuple to an n-tuple list.
- */
-static void add_7tuple(ntuple_list out, double v1, double v2, double v3,
-                       double v4, double v5, double v6, double v7) {
-  lock_list.lock();
-  /* check parameters */
-  if (out == nullptr) error("add_7tuple: invalid n-tuple input.");
-  if (out->dim != 7) error("add_7tuple: the n-tuple must be a 7-tuple.");
-
-  /* if needed, alloc more tuples to 'out' */
-  if (out->size == out->max_size) enlarge_ntuple_list(out);
-  if (out->values == nullptr) error("add_7tuple: invalid n-tuple input.");
-
-  /* add new 7-tuple */
-  out->values[out->size * out->dim + 0] = v1;
-  out->values[out->size * out->dim + 1] = v2;
-  out->values[out->size * out->dim + 2] = v3;
-  out->values[out->size * out->dim + 3] = v4;
-  out->values[out->size * out->dim + 4] = v5;
-  out->values[out->size * out->dim + 5] = v6;
-  out->values[out->size * out->dim + 6] = v7;
-
-  /* update number of tuples counter */
-  out->size++;
-  lock_list.unlock();
-}
-
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------- Image Data Types -----------------------------*/
