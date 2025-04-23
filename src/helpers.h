@@ -145,6 +145,9 @@
 
 double UPM_GRADIENT_THRESHOLD_LSD = 5.2262518595055063;
 
+
+const unsigned int numberThreads = 16;
+
 /*----------------------------------------------------------------------------*/
 /** Chained list of coordinates.
  */
@@ -422,8 +425,7 @@ static image_double new_image_double_ptr(unsigned int xsize,
  * @param modgrad the module of the gradient
  */
 static void grad_angle_orientation(image_double in, double threshold, image_double& g, image_double& modgrad){
-  unsigned int n, p, x, y, adr;
-  double com1, com2, gx, gy, norm, norm2;
+  unsigned int n, p;
   n = in->ysize;
   p = in->xsize;
 
@@ -434,43 +436,62 @@ static void grad_angle_orientation(image_double in, double threshold, image_doub
   modgrad = new_image_double(in->xsize, in->ysize);
 
   /* 'undefined' on the up and left boundaries */
-  for (x = 0; x < p; x++) g->data[x] = NOTDEF;
-  for (y = 0; y < n; y++) g->data[p * y] = NOTDEF;
+  for (int x = 0; x < p; x++) g->data[x] = NOTDEF;
+  for (int y = 0; y < n; y++) g->data[p * y] = NOTDEF;
 
+  const int numberThreads = 64;
   /* compute gradient on the remaining pixels */
-  for (x = 1; x < p; x++)
-    for (y = 1; y < n; y++) {
-      adr = y * p + x;
+  std::vector<std::pair<int,int>> ranges(numberThreads);
 
-      /*
-         Norm 2 computation using 2x2 pixel window:
-           A B
-           C D
-         and
-           com1 = D-A,  com2 = B-C.
-         Then
-           gx = B+D - (A+C)   horizontal difference
-           gy = C+D - (A+B)   vertical difference
-         com1 and com2 are just to avoid 2 additions.
-       */
-      com1 = in->data[adr] - in->data[adr - p - 1];
-      com2 = in->data[adr - p] - in->data[adr - 1];
-
-      gx = com1 + com2; /* gradient x component */
-      gy = com1 - com2; /* gradient y component */
-      norm2 = gx * gx + gy * gy;
-      norm = sqrt(norm2 / 4.0); /* gradient norm */
-
-      modgrad->data[adr] = norm; /* store gradient norm */
-
-      if (norm <= threshold) /* norm too small, gradient no defined */
-        g->data[adr] = NOTDEF; /* gradient angle not defined */
-      else {
-        /* gradient angle computation */
-        //g->data[adr] = atan2(gx, -gy);
-        g->data[adr] = atan2(-gx, gy);
+  int stride = p / numberThreads;
+  std::function worker = [&](int idx) {
+    unsigned int adr;
+    double com1, com2, gx, gy, norm, norm2;
+    auto [from, to] = std::make_pair(idx * stride + 1, std::min((idx+1) * stride + 1, (int)p));
+    for (int x = from; x < to; x++) {
+      for (int y = 1; y < n; y++) {
+        adr = y * p + x;
+  
+        /*
+           Norm 2 computation using 2x2 pixel window:
+             A B
+             C D
+           and
+             com1 = D-A,  com2 = B-C.
+           Then
+             gx = B+D - (A+C)   horizontal difference
+             gy = C+D - (A+B)   vertical difference
+           com1 and com2 are just to avoid 2 additions.
+         */
+        com1 = in->data[adr] - in->data[adr - p - 1];
+        com2 = in->data[adr - p] - in->data[adr - 1];
+  
+        gx = com1 + com2; /* gradient x component */
+        gy = com1 - com2; /* gradient y component */
+        norm2 = gx * gx + gy * gy;
+        norm = sqrt(norm2 / 4.0); /* gradient norm */
+  
+        modgrad->data[adr] = norm; /* store gradient norm */
+  
+        if (norm <= threshold) /* norm too small, gradient no defined */
+          g->data[adr] = NOTDEF; /* gradient angle not defined */
+        else {
+          /* gradient angle computation */
+          //g->data[adr] = atan2(gx, -gy);
+          g->data[adr] = atan2(-gx, gy);
+        }
       }
     }
+  };
+
+  std::vector<std::thread> threads(numberThreads);
+  for(int i = 0; i < numberThreads;i++) {
+    threads[i] = std::thread(worker, i);
+  }
+
+  for(std::thread &t: threads) {
+      t.join();
+  }
 }
 
 /*----------------------------------------------------------------------------*/

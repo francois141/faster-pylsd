@@ -487,7 +487,7 @@ static int refine(struct point *reg, int *reg_size, image_double modgrad,
 /*----------------------------------------------------------------------------*/
 /*-------------------------- Line Segment Detector ---------------------------*/
 /*----------------------------------------------------------------------------*/
-#include <mutex>
+
 /*----------------------------------------------------------------------------*/
 /** LSD full interface.
  */
@@ -542,18 +542,17 @@ double *LineSegmentDetection(int *n_out,
 
   /* load and scale image (if necessary) and compute angle at each pixel */
   image = new_image_double_ptr((unsigned int) X, (unsigned int) Y, img);
+  auto start = std::chrono::high_resolution_clock::now();
+
   // TODO: Integrade this part
   // scaled_image = gaussian_sampler(image, scale, sigma_scale);
-  if (scale != 1.0) {
-    if (grad_nfa)
-      ll_angle(image, rho, &list_pp, &mem_pp, img_gradnorm, img_grad_angle, (unsigned int) n_bins);
-    ll_angle(image, rho, &list_p, &mem_p, modgrad, angles, (unsigned int) n_bins);
-    
+
+  if (grad_nfa) {
+    ll_angle(image, rho, &list_pp, &mem_pp, img_gradnorm, img_grad_angle, (unsigned int) n_bins);
   } else {
-    if (grad_nfa)
-      ll_angle(image, rho, &list_pp, &mem_pp, img_gradnorm, img_grad_angle, (unsigned int) n_bins);
     ll_angle(image, rho, &list_p, &mem_p, modgrad, angles, (unsigned int) n_bins);
   }
+
   xsize = angles->xsize;
   ysize = angles->ysize;
 
@@ -589,8 +588,6 @@ double *LineSegmentDetection(int *n_out,
     point_values.push_back(point{list_p->x, list_p->y});
   }
 
-  const unsigned int numberThreads = 64;
-
   std::vector<point*> registers_vector(numberThreads);
   for(int i = 0; i < numberThreads;i++) {
     registers_vector[i] = static_cast<point *>(calloc((xsize * ysize), sizeof(point)));
@@ -602,8 +599,6 @@ double *LineSegmentDetection(int *n_out,
   for(int i = 0; i < numberThreads;i++) {
     indices.push_back(std::make_pair(slot * i, slot * (i+1)));
   }
-
-  auto start = std::chrono::high_resolution_clock::now();
 
   /* search for line segments */
   std::function<std::vector<double>(int)> worker = [&](int index) {
