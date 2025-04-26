@@ -180,12 +180,12 @@ py::list batched_run_lsd(const py::array_t<double>& img,
 }
 
 
-PYBIND11_MODULE(pytlsd, m) {
+PYBIND11_MODULE(faster_pytlsd, m) {
     m.doc() = R"pbdoc(
-        Python transparent bindings for LSD (Line Segment Detector)
+        Python bindings for a multi-threaded version of LSD (Line Segment Detector)
         -----------------------
 
-        .. currentmodule:: pytlsd
+        .. currentmodule:: faster_pytlsd
 
         .. autosummary::
            :toctree: _generate
