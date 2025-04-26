@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.4...3.18)
-project(pytlsd)
+project(faster_pytlsd)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
@@ -26,12 +26,12 @@ include_directories(src)
 add_library(tlsd src/lsd.cpp)
 
 # Create the python bindings
-pybind11_add_module(pytlsd src/PYAPI.cpp)
+pybind11_add_module(faster_pytlsd src/PYAPI.cpp)
 
 # Add the dependency between the LSD code and the bindings
-target_link_libraries(pytlsd PRIVATE tlsd ${OpenCV_LIBS} ${OpenMP_LIBS})
+target_link_libraries(faster_pytlsd PRIVATE tlsd ${OpenCV_LIBS} ${OpenMP_LIBS})
 
-target_compile_definitions(pytlsd PRIVATE VERSION_INFO=${EXAMPLE_VERSION_INFO})
+target_compile_definitions(faster_pytlsd PRIVATE VERSION_INFO=${EXAMPLE_VERSION_INFO})
 
 enable_testing()
 

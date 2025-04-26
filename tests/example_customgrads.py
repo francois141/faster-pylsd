@@ -4,7 +4,7 @@ from typing import Tuple
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-import pytlsd
+import faster_pytlsd
 from skimage.transform import pyramid_reduce
 
 
@@ -36,7 +36,7 @@ def main() -> None:
     # Get image gradients
     gx, gy, gradnorm, gradangle = get_thresholded_grad(resized_img)
 
-    segments = pytlsd.lsd(resized_img, 1.0, gradnorm=gradnorm, gradangle=gradangle)
+    segments = faster_pytlsd.lsd(resized_img, 1.0, gradnorm=gradnorm, gradangle=gradangle)
     segments /= scale_down
 
     plt.title("Gradient norm")
