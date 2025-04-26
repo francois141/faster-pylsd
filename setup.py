@@ -136,13 +136,13 @@ class CMakeBuild(build_ext):
 # The information here can also be placed in setup.cfg - better separation of
 # logic and declaration, and simpler if you include description/version in a file.
 setup(
-    name="pytlsd",
+    name="faster_pytlsd",
     version="0.0.5",
-    author="Iago Suarez",
+    author="Iago Suarez and François Costa",
     author_email="iagoh92@gmail.com",
-    description="Transparent bindings of LSD (Line Segment Detector)",
+    description="Python bindings of a multi-threaded version of LSD (Line Segment Detector)",
     long_description="",
-    ext_modules=[CMakeExtension("pytlsd")],
+    ext_modules=[CMakeExtension("faster_pytlsd")],
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,
     extras_require={"test": ["pytest>=6.0"]},

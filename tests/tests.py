@@ -3,7 +3,7 @@ import unittest
 
 import cv2
 import numpy as np
-import pytlsd
+import faster_pytlsd
 from scipy.sparse import csgraph, csr_matrix
 from skimage.transform import pyramid_reduce
 
@@ -31,7 +31,7 @@ class StructureDetectionTest(unittest.TestCase):
 
     def test_empty(self) -> None:
         img = np.zeros((100, 100), np.uint8)
-        result = pytlsd.lsd(img)
+        result = faster_pytlsd.lsd(img)
         self.assertEqual(result.shape, (0, 5))
 
     def test_square(self) -> None:
@@ -39,7 +39,7 @@ class StructureDetectionTest(unittest.TestCase):
         x0, x1, y0, y1 = 20, 140, 50, 150
         img[y0:y1, x0:x1] = 255
 
-        result = pytlsd.lsd(img)
+        result = faster_pytlsd.lsd(img)
         self.assertEqual(result.shape, (4, 5))
 
         expected = np.array([[x0, y0, x1, y0],
@@ -58,7 +58,7 @@ class StructureDetectionTest(unittest.TestCase):
         # Draw triangle
         cv2.drawContours(img, [expected.reshape(-1, 2)], 0, (255,), thickness=cv2.FILLED)
 
-        result = pytlsd.lsd(img)
+        result = faster_pytlsd.lsd(img)
         self.assertEqual(result.shape, (3, 5))
         self.assert_segs_close(result[:, :4], expected, tol=2.5)
 
@@ -83,8 +83,8 @@ class StructureDetectionTest(unittest.TestCase):
 
         batch_img = np.array(batch_img)
 
-        # result = [pytlsd.lsd(b) for b in batch_img]
-        result = pytlsd.batched_lsd(batch_img)
+        # result = [faster_pytlsd.lsd(b) for b in batch_img]
+        result = faster_pytlsd.batched_lsd(batch_img)
 
         for e, r in zip(batch_expected, result):
             self.assertEqual(r.shape, (3, 5))
@@ -92,7 +92,7 @@ class StructureDetectionTest(unittest.TestCase):
 
     def test_real_img(self) -> None:
         img = cv2.imread('resources/ai_001_001.frame.0000.color.jpg', cv2.IMREAD_GRAYSCALE)
-        segments = pytlsd.lsd(img)
+        segments = faster_pytlsd.lsd(img)
         # Check that it detects at least 500 segments
         self.assertGreater(len(segments), 500)
 
@@ -114,10 +114,10 @@ class StructureDetectionTest(unittest.TestCase):
         batch = np.array(batch)
 
         # Compute the result sequentially
-        expected = [pytlsd.lsd(b) for b in batch]
+        expected = [faster_pytlsd.lsd(b) for b in batch]
 
         # Compute the batched result
-        result = pytlsd.batched_lsd(batch)
+        result = faster_pytlsd.batched_lsd(batch)
 
         # Check that the results are the same
         for i in range(batch_size):
@@ -141,6 +141,6 @@ class StructureDetectionTest(unittest.TestCase):
         NOTDEF = -1024.0
         gradangle[gradnorm <= threshold] = NOTDEF
 
-        segments = pytlsd.lsd(resized_img, 1.0, gradnorm=gradnorm, gradangle=gradangle)
+        segments = faster_pytlsd.lsd(resized_img, 1.0, gradnorm=gradnorm, gradangle=gradangle)
         # Check that it detects at least 500 segments
         self.assertGreater(len(segments), 500)
