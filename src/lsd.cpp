@@ -727,12 +727,11 @@ double *LineSegmentDetection(int *n_out,
 }
 
 /*----------------------------------------------------------------------------*/
-/** LSD Simple Interface with Scale and Region output.
+/** LSD Simple Interface.
  */
-double *lsd_scale_region(int *n_out,
-                         double *img, int X, int Y, double scale,
-                         int **reg_img, int *reg_x, int *reg_y, double log_eps = 0.0) {
+double *lsd(int *n_out, double *img, int X, int Y, double gradientThreshold, double log_eps) {
   /* LSD parameters */
+  double scale = 1.0;       /* Scale the image by Gaussian filter to 'scale'. */
   double sigma_scale = 0.6; /* Sigma for Gaussian filter is computed as
                                 sigma = sigma_scale/scale.                    */
   double quant = 2.0;       /* Bound to the quantization error on the
@@ -743,28 +742,11 @@ double *lsd_scale_region(int *n_out,
   int n_bins = 1024;        /* Number of bins in pseudo-ordering of gradient
                                modulus.                                       */
 
-  return LineSegmentDetection(n_out, img, X, Y, scale, sigma_scale, quant,
-                              ang_th, log_eps, density_th, n_bins, false,
-                              nullptr, nullptr, reg_img, reg_x, reg_y);
-}
-
-/*----------------------------------------------------------------------------*/
-/** LSD Simple Interface with Scale.
- */
-double *lsd_scale(int *n_out, double *img, int X, int Y, double scale, double log_eps = 0.0) {
-  return lsd_scale_region(n_out, img, X, Y, scale, nullptr, nullptr, nullptr, log_eps);
-}
-
-/*----------------------------------------------------------------------------*/
-/** LSD Simple Interface.
- */
-double *lsd(int *n_out, double *img, int X, int Y, double gradientThreshold, double log_eps) {
-  /* LSD parameters */
-  double scale = 1.0;       /* Scale the image by Gaussian filter to 'scale'. */
-
   double prev_grad_val = UPM_GRADIENT_THRESHOLD_LSD;
   UPM_GRADIENT_THRESHOLD_LSD = gradientThreshold;
-  double *result = lsd_scale(n_out, img, X, Y, scale, log_eps);
+  double *result = LineSegmentDetection(n_out, img, X, Y, scale, sigma_scale, quant,
+                              ang_th, log_eps, density_th, n_bins, false,
+                              nullptr, nullptr, nullptr, nullptr, nullptr);
   UPM_GRADIENT_THRESHOLD_LSD = prev_grad_val;
   return result;
 }
