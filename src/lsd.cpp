@@ -582,27 +582,18 @@ double *LineSegmentDetection(int *n_out,
   xsize = angles->xsize;
   ysize = angles->ysize;
 
-  std::vector<point> point_values;
-  int cnt = 0;
-  for (; list_p != nullptr; list_p = list_p->next) {
-    if(cnt++ >= 250000) break;
-    point_values.push_back(point{list_p->x, list_p->y});
-  }
-
-  const int currSize = point_values.size();
-  int slot = currSize / numberThreads;
-  std::vector<std::pair<int,int>> indices;
-  for(int i = 0; i < numberThreads;i++) {
-    indices.push_back(std::make_pair(slot * i, slot * (i+1)));
-  }
-
   /* search for line segments */
   std::function<std::vector<double>(int)> worker = [&](int index) {
     std::vector<double> output;
-  for (int i = indices[index].first; i < indices[index].second;i++) {
-    auto current_point = point_values[i];
-    if (used->data[current_point.x + current_point.y * used->xsize] == NOTUSED &&
-        angles->data[current_point.x + current_point.y * angles->xsize] != NOTDEF)
+    auto list_p2 = list_p;
+    unsigned int counter = 0;
+    for (; list_p2 != nullptr; list_p2 = list_p2->next) {
+      if(counter++ % numberThreads != index) continue;
+      if(counter >= 100000) break;
+
+    auto [x,y] = std::make_pair(list_p2->x, list_p2->y);
+    if (used->data[x + y * used->xsize] == NOTUSED &&
+        angles->data[x + y * angles->xsize] != NOTDEF)
       /* there is no risk of double comparison problems here
          because we are only interested in the exact NOTDEF value */
     {
@@ -612,7 +603,7 @@ double *LineSegmentDetection(int *n_out,
       int reg_size;
       double reg_angle;
       /* find the region of connected point and ~equal angle */
-      region_grow(current_point.x, current_point.y, angles, registers_vector[index], &reg_size,
+      region_grow(x, y, angles, registers_vector[index], &reg_size,
                   &reg_angle, used, prec);
 
       /* reject small regions */
