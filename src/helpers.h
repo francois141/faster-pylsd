@@ -107,6 +107,7 @@
 #include <chrono>
 #include <functional>
 #include <future>
+#include "parameters.h"
 
 #include "lsd.h"
 
@@ -144,9 +145,6 @@
 #define USED    1
 
 double UPM_GRADIENT_THRESHOLD_LSD = 5.2262518595055063;
-
-
-const unsigned int numberThreads = 16;
 
 /*----------------------------------------------------------------------------*/
 /** Chained list of coordinates.
@@ -557,8 +555,8 @@ static image_double ll_angle(image_double in, double threshold,
   }
 
   /* compute histogram of gradient values */
-  for (x = 0; x < p - 1; x++)
-    for (y = 0; y < n - 1; y++) {
+  for (x = 0; x < p - 1; x += stride_ll_angle_x)
+    for (y = 0; y < n - 1; y += stride_ll_angle_y) {
       norm = modgrad->data[y * p + x];
 
       /* store the point in the right bin according to its norm */
