@@ -146,7 +146,7 @@
 double UPM_GRADIENT_THRESHOLD_LSD = 5.2262518595055063;
 
 
-const unsigned int numberThreads = 24;
+const unsigned int numberThreads = 16;
 
 /*----------------------------------------------------------------------------*/
 /** Chained list of coordinates.
