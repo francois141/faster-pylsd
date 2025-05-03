@@ -437,7 +437,6 @@ static void grad_angle_orientation(image_double in, double threshold, image_doub
   for (int x = 0; x < p; x++) g->data[x] = NOTDEF;
   for (int y = 0; y < n; y++) g->data[p * y] = NOTDEF;
 
-  const int numberThreads = 64;
   /* compute gradient on the remaining pixels */
   std::vector<std::pair<int,int>> ranges(numberThreads);
 
