@@ -62,7 +62,7 @@
     get better numeric precision).
  */
 static double get_theta(struct point *reg, int reg_size, double x, double y,
-                        image_double modgrad, double reg_angle, double prec) {
+                        Image<double>* modgrad, double reg_angle, double prec) {
   double lambda, theta, weight;
   double Ixx = 0.0;
   double Iyy = 0.0;
@@ -103,7 +103,7 @@ static double get_theta(struct point *reg, int reg_size, double x, double y,
 /** Computes a rectangle that covers a region of points.
  */
 static void region2rect(struct point *reg, int reg_size,
-                        image_double modgrad, double reg_angle,
+                        Image<double>* modgrad, double reg_angle,
                         double prec, double p, struct rect *rec) {
   double x, y, dx, dy, l, w, theta, weight, sum, l_min, l_max, w_min, w_max;
   int i;
@@ -192,8 +192,8 @@ static void region2rect(struct point *reg, int reg_size,
 /** Build a region of pixels that share the same angle, up to a
     tolerance 'prec', starting at point (x,y).
  */
-static void region_grow(int x, int y, image_double angles, struct point *reg,
-                        int *reg_size, double *reg_angle, image_char used,
+static void region_grow(int x, int y, Image<double>* angles, struct point *reg,
+                        int *reg_size, double *reg_angle, Image<char> *used,
                         double prec) {
   double sumdx, sumdy;
   int xx, yy, i;
@@ -242,7 +242,7 @@ static void region_grow(int x, int y, image_double angles, struct point *reg,
 /** Try some rectangles variations to improve NFA value. Only if the
     rectangle is not meaningful (i.e., log_nfa <= log_eps).
  */
-static double rect_improve(struct rect *rec, image_double angles,
+static double rect_improve(struct rect *rec, Image<double>* angles,
                            double logNT, double log_eps) {
   struct rect r;
   double log_nfa, log_nfa_new;
@@ -342,9 +342,9 @@ static double rect_improve(struct rect *rec, image_double angles,
     density of region points or to discard the region if too small.
  */
 static int reduce_region_radius(struct point *reg, int *reg_size,
-                                image_double modgrad, double reg_angle,
+                                Image<double>* modgrad, double reg_angle,
                                 double prec, double p, struct rect *rec,
-                                image_char used, image_double angles,
+                                Image<char> *used, Image<double>* angles,
                                 double density_th) {
   double density, rad1, rad2, rad, xc, yc;
   int i;
@@ -416,9 +416,9 @@ static int reduce_region_radius(struct point *reg, int *reg_size,
     produce a rectangle with the right density of region points,
     'reduce_region_radius' is called to try to satisfy this condition.
  */
-static int refine(struct point *reg, int *reg_size, image_double modgrad,
+static int refine(struct point *reg, int *reg_size, Image<double>* modgrad,
                   double reg_angle, double prec, double p, struct rect *rec,
-                  image_char used, image_double angles, double density_th) {
+                  Image<char> *used, Image<double>* angles, double density_th) {
   double angle, ang_d, mean_angle, tau, density, xc, yc, ang_c, sum, s_sum;
   int i, n;
 
@@ -498,11 +498,10 @@ double *LineSegmentDetection(int *n_out,
                              int n_bins, bool grad_nfa,
                              double * modgrad_ptr, double * angles_ptr,
                              int **reg_img, int *reg_x, int *reg_y) {
-  image_double image;
+  Image<double>* image;
   double *return_value;
-  image_double scaled_image;
-  image_char used;
-  image_int region = nullptr;
+  Image<double>* scaled_image;
+  Image<int> * region = nullptr;
   struct coorlist *list_p, *list_pp;
   void *mem_p, *mem_pp;
   struct point *reg;
@@ -531,30 +530,34 @@ double *LineSegmentDetection(int *n_out,
   rho = UPM_GRADIENT_THRESHOLD_LSD;
   // std::cout << "LSD Gradient threshold: " << rho << std::endl;
 
+  Image<double>* modgrad = nullptr;
+  Image<double>* angles = nullptr;
+  Image<double>* img_gradnorm = nullptr;
+  Image<double>* img_grad_angle = nullptr;
 
-  image_double modgrad{}, angles{};
-  image_double img_gradnorm{}, img_grad_angle{};
+  // TODO: In the future handle case with modgrad_ptr and angles_ptr
   if (modgrad_ptr) {
-    modgrad = new_image_double_ptr(X, Y, modgrad_ptr);
+    modgrad = new Image<double>(X, Y, modgrad_ptr);
   }
   if (angles_ptr) {
-    angles = new_image_double_ptr(X, Y, angles_ptr);
+    angles = new Image<double>(X, Y, angles_ptr);
   }
 
   /* load and scale image (if necessary) and compute angle at each pixel */
-  image = new_image_double_ptr((unsigned int) X, (unsigned int) Y, img);
+  image = new Image<double>((unsigned int) X, (unsigned int) Y, img);
 
   auto start = std::chrono::high_resolution_clock::now();
 
   /* load and scale image (if necessary) and compute angle at each pixel */
-  image = new_image_double_ptr((unsigned int) X, (unsigned int) Y, img);
+  image = new Image<double>((unsigned int) X, (unsigned int) Y, img);
+
 
   if (scale != 1.0 || with_gaussian) {
     scaled_image = gaussian_sampler(image, scale, sigma_scale);
     if (grad_nfa)
       ll_angle(scaled_image, rho, &list_pp, &mem_pp, img_gradnorm, img_grad_angle, (unsigned int) n_bins);
     ll_angle(scaled_image, rho, &list_p, &mem_p, modgrad, angles, (unsigned int) n_bins);
-    free_image_double(scaled_image);
+    delete scaled_image;
   } else {
     if (grad_nfa)
       ll_angle(image, rho, &list_pp, &mem_pp, img_gradnorm, img_grad_angle, (unsigned int) n_bins);
@@ -589,8 +592,8 @@ double *LineSegmentDetection(int *n_out,
 
   /* initialize some structures */
   if (reg_img != nullptr && reg_x != nullptr && reg_y != nullptr) /* save region data */
-    region = new_image_int_ini(angles->xsize, angles->ysize, 0);
-  used = new_image_char_ini(xsize, ysize, NOTUSED);
+    region = new Image<int>(angles->xsize, angles->ysize, 0);
+  auto used = new Image<char>(xsize, ysize, static_cast<char>(0));
 
   reg = static_cast<struct point*>(malloc((size_t) (xsize * ysize) * sizeof(struct point)));
   if (reg == nullptr) error("not enough memory!");
@@ -694,14 +697,14 @@ double *LineSegmentDetection(int *n_out,
   free((void *) image);   /* only the double_image structure should be freed,
                                the data pointer was provided to this functions
                                and should not be destroyed.                 */
-  angles_ptr ? free(angles) : free_image_double(angles);
-  modgrad_ptr ? free(modgrad) : free_image_double(modgrad);
+  angles_ptr ? free(angles) : delete angles;
+  modgrad_ptr ? free(modgrad) : delete modgrad;
   if (grad_nfa) {
-    free_image_double(img_gradnorm);
-    free_image_double(img_grad_angle);
+    delete img_gradnorm;
+    delete img_grad_angle;
   }
 
-  free_image_char(used);
+  delete used;
   free((void *) reg);
   free((void *) mem_p);
   if (grad_nfa)
@@ -717,9 +720,9 @@ double *LineSegmentDetection(int *n_out,
     *reg_y = (int) (region->ysize);
 
     /* free the 'region' structure.
-       we cannot use the function 'free_image_int' because we need to keep
+       we cannot use the function 'free_Image<int> *' because we need to keep
        the memory with the image data to be returned by this function. */
-    free((void *) region);
+    delete region;
   }
 
   *n_out /= 7;

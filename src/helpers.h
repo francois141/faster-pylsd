@@ -217,199 +217,47 @@ static double dist(double x1, double y1, double x2, double y2) {
   return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
 }
 
+// TODO: Add concept here
+template<typename T>
+static T dist(T x1, T y1, T x2, T y2) {
+  return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+}
+
 /*----------------------------------------------------------------------------*/
 /*----------------------------- Image Data Types -----------------------------*/
 /*----------------------------------------------------------------------------*/
 
-/*----------------------------------------------------------------------------*/
-/** char image data type
 
-    The pixel value at (x,y) is accessed by:
+template <typename  T>
+class Image {
 
-      image->data[ x + y * image->xsize ]
+public:
 
-    with x and y integer.
- */
-typedef struct image_char_s {
-  unsigned char *data;
+  Image(unsigned int in_xsize, unsigned int in_ysize) : xsize(in_xsize), ysize(in_ysize) {
+
+    if (xsize == 0 || ysize == 0) error("new Image_char: invalid image size.");
+
+    this->data = static_cast<T*>(calloc(xsize * ysize,
+                                           sizeof(T)));
+    if (this->data == nullptr) error("not enough memory.");
+  }
+
+  Image(unsigned int in_xsize, unsigned int in_ysize, T fill_value): Image(in_xsize, in_ysize) {
+    for (int i = 0; i < this->xsize * this->ysize; i++) {
+      this->data[i] = fill_value;
+    }
+  }
+
+  Image(unsigned in_xsize, unsigned int in_ysize, T* in_data): xsize(in_xsize), ysize(in_ysize), data(in_data){}
+
+ ~Image() {
+   free((void *) this->data);
+ }
+
+  // TODO: Delete the assignment operator
   unsigned int xsize, ysize;
-} *image_char;
-
-/*----------------------------------------------------------------------------*/
-/** Free memory used in image_char 'i'.
- */
-static void free_image_char(image_char i) {
-  if (i == nullptr || i->data == nullptr)
-    error("free_image_char: invalid input image.");
-  free((void *) i->data);
-  free((void *) i);
-}
-
-/*----------------------------------------------------------------------------*/
-/** Create a new image_char of size 'xsize' times 'ysize'.
- */
-static image_char new_image_char(unsigned int xsize, unsigned int ysize) {
-  image_char image;
-
-  /* check parameters */
-  if (xsize == 0 || ysize == 0) error("new_image_char: invalid image size.");
-
-  /* get memory */
-  image = (image_char) malloc(sizeof(struct image_char_s));
-  if (image == nullptr) error("not enough memory.");
-  image->data = (unsigned char *) calloc(xsize * ysize,
-                                         sizeof(unsigned char));
-  if (image->data == nullptr) error("not enough memory.");
-
-  /* set image size */
-  image->xsize = xsize;
-  image->ysize = ysize;
-
-  return image;
-}
-
-/*----------------------------------------------------------------------------*/
-/** Create a new image_char of size 'xsize' times 'ysize',
-    initialized to the value 'fill_value'.
- */
-static image_char new_image_char_ini(unsigned int xsize, unsigned int ysize,
-                                     unsigned char fill_value) {
-  image_char image = new_image_char(xsize, ysize); /* create image */
-  unsigned int N = xsize * ysize;
-  unsigned int i;
-
-  /* check parameters */
-  if (image == nullptr || image->data == nullptr)
-    error("new_image_char_ini: invalid image.");
-
-  /* initialize */
-  for (i = 0; i < N; i++) image->data[i] = fill_value;
-
-  return image;
-}
-
-/*----------------------------------------------------------------------------*/
-/** int image data type
-
-    The pixel value at (x,y) is accessed by:
-
-      image->data[ x + y * image->xsize ]
-
-    with x and y integer.
- */
-typedef struct image_int_s {
-  int *data;
-  unsigned int xsize, ysize;
-} *image_int;
-
-/*----------------------------------------------------------------------------*/
-/** Create a new image_int of size 'xsize' times 'ysize'.
- */
-static image_int new_image_int(unsigned int xsize, unsigned int ysize) {
-  image_int image;
-
-  /* check parameters */
-  if (xsize == 0 || ysize == 0) error("new_image_int: invalid image size.");
-
-  /* get memory */
-  image = (image_int) malloc(sizeof(struct image_int_s));
-  if (image == nullptr) error("not enough memory.");
-  image->data = (int *) calloc(xsize * ysize, sizeof(int));
-  if (image->data == nullptr) error("not enough memory.");
-
-  /* set image size */
-  image->xsize = xsize;
-  image->ysize = ysize;
-
-  return image;
-}
-
-/*----------------------------------------------------------------------------*/
-/** Create a new image_int of size 'xsize' times 'ysize',
-    initialized to the value 'fill_value'.
- */
-static image_int new_image_int_ini(unsigned int xsize, unsigned int ysize,
-                                   int fill_value) {
-  image_int image = new_image_int(xsize, ysize); /* create image */
-  unsigned int N = xsize * ysize;
-  unsigned int i;
-
-  /* initialize */
-  // for (i = 0; i < N; i++) image->data[i] = fill_value;
-
-  return image;
-}
-
-/*----------------------------------------------------------------------------*/
-/** double image data type
-
-    The pixel value at (x,y) is accessed by:
-
-      image->data[ x + y * image->xsize ]
-
-    with x and y integer.
- */
-typedef struct image_double_s {
-  double *data;
-  unsigned int xsize, ysize;
-} *image_double;
-
-/*----------------------------------------------------------------------------*/
-/** Free memory used in image_double 'i'.
- */
-static void free_image_double(image_double i) {
-  if (i == nullptr || i->data == nullptr)
-    error("free_image_double: invalid input image.");
-  free((void *) i->data);
-  free((void *) i);
-}
-
-/*----------------------------------------------------------------------------*/
-/** Create a new image_double of size 'xsize' times 'ysize'.
- */
-static image_double new_image_double(unsigned int xsize, unsigned int ysize) {
-  image_double image;
-
-  /* check parameters */
-  if (xsize == 0 || ysize == 0) error("new_image_double: invalid image size.");
-
-  /* get memory */
-  image = (image_double) malloc(sizeof(struct image_double_s));
-  if (image == nullptr) error("not enough memory.");
-  image->data = (double *) calloc(xsize * ysize, sizeof(double));
-  if (image->data == nullptr) error("not enough memory.");
-
-  /* set image size */
-  image->xsize = xsize;
-  image->ysize = ysize;
-
-  return image;
-}
-
-/*----------------------------------------------------------------------------*/
-/** Create a new image_double of size 'xsize' times 'ysize'
-    with the data pointed by 'data'.
- */
-static image_double new_image_double_ptr(unsigned int xsize,
-                                         unsigned int ysize, double *data) {
-  image_double image;
-
-  /* check parameters */
-  if (xsize == 0 || ysize == 0)
-    error("new_image_double_ptr: invalid image size.");
-  if (data == nullptr) error("new_image_double_ptr: nullptr data pointer.");
-
-  /* get memory */
-  image = (image_double) malloc(sizeof(struct image_double_s));
-  if (image == nullptr) error("not enough memory.");
-
-  /* set image */
-  image->xsize = xsize;
-  image->ysize = ysize;
-  image->data = data;
-
-  return image;
-}
+  T *data;
+};
 
 /*----------------------------------------------------------------------------*/
 /*--------------------------------- Gradient ---------------------------------*/
@@ -422,16 +270,18 @@ static image_double new_image_double_ptr(unsigned int xsize,
  * @param g The gradient orientation map
  * @param modgrad the module of the gradient
  */
-static void grad_angle_orientation(image_double in, double threshold, image_double& g, image_double& modgrad){
+
+// TODO: Probably a double pointer to check here
+static void grad_angle_orientation(Image<double>* in, double threshold, Image<double>*& g, Image<double>*& modgrad){
   unsigned int n, p;
   n = in->ysize;
   p = in->xsize;
 
   /* allocate output image */
-  g = new_image_double(in->xsize, in->ysize);
+  g = new Image<double>(in->xsize, in->ysize);
 
   /* get memory for the image of gradient modulus */
-  modgrad = new_image_double(in->xsize, in->ysize);
+  modgrad = new Image<double>(in->xsize, in->ysize);
 
   /* 'undefined' on the up and left boundaries */
   for (int x = 0; x < p; x++) g->data[x] = NOTDEF;
@@ -448,7 +298,7 @@ static void grad_angle_orientation(image_double in, double threshold, image_doub
     for (int x = from; x < to; x++) {
       for (int y = 1; y < n; y++) {
         adr = y * p + x;
-  
+
         /*
            Norm 2 computation using 2x2 pixel window:
              A B
@@ -462,14 +312,14 @@ static void grad_angle_orientation(image_double in, double threshold, image_doub
          */
         com1 = in->data[adr] - in->data[adr - p - 1];
         com2 = in->data[adr - p] - in->data[adr - 1];
-  
+
         gx = com1 + com2; /* gradient x component */
         gy = com1 - com2; /* gradient y component */
         norm2 = gx * gx + gy * gy;
         norm = sqrt(norm2 / 4.0); /* gradient norm */
-  
+
         modgrad->data[adr] = norm; /* store gradient norm */
-  
+
         if (norm <= threshold) /* norm too small, gradient no defined */
           g->data[adr] = NOTDEF; /* gradient angle not defined */
         else {
@@ -495,8 +345,8 @@ static void grad_angle_orientation(image_double in, double threshold, image_doub
 /** Computes the direction of the level line of 'in' at each point.
 
     The result is:
-    - an image_double with the angle at each pixel, or NOTDEF if not defined.
-    - the image_double 'modgrad' with the gradient magnitude at each point.
+    - an Image<double>* with the angle at each pixel, or NOTDEF if not defined.
+    - the Image<double>* 'modgrad' with the gradient magnitude at each point.
     - a list of pixels 'list_p' roughly ordered by decreasing
       gradient magnitude. (The order is made by classifying points
       into bins by gradient magnitude. The parameters 'n_bins' and
@@ -507,9 +357,9 @@ static void grad_angle_orientation(image_double in, double threshold, image_doub
     - a pointer 'mem_p' to the memory used by 'list_p' to be able to
       free the memory when it is not used anymore.
  */
-static image_double ll_angle(image_double in, double threshold,
+static Image<double>* ll_angle(Image<double>* in, double threshold,
                              struct coorlist **list_p, void **mem_p,
-                             image_double& modgrad, image_double& g, unsigned int n_bins) {
+                             Image<double>*& modgrad, Image<double>*& g, unsigned int n_bins) {
   unsigned int n, p, x, y, i;
   double norm;
   /* the rest of the variables are used for pseudo-ordering
@@ -600,7 +450,7 @@ static image_double ll_angle(image_double in, double threshold,
 /*----------------------------------------------------------------------------*/
 /** Is point (x,y) aligned to angle theta, up to precision 'prec'?
  */
-static int isaligned(int x, int y, image_double angles, double theta,
+static int isaligned(int x, int y, Image<double>* angles, double theta,
                      double prec) {
   double a;
 
@@ -1168,7 +1018,7 @@ static rect_iter *ri_ini(struct rect *r) {
 /*----------------------------------------------------------------------------*/
 /** Compute a rectangle's NFA value.
  */
-static double rect_nfa(struct rect *rec, image_double angles, double logNT) {
+static double rect_nfa(struct rect *rec, Image<double>* angles, double logNT) {
   rect_iter *i;
   int pts = 0;
   int alg = 0;
@@ -1374,9 +1224,10 @@ static void gaussian_kernel(ntuple_list kernel, double sigma, double mean) {
     in the x axis, and then the combined Gaussian kernel and sampling
     in the y axis.
  */
-static image_double gaussian_sampler(image_double in, double scale,
+static Image<double>* gaussian_sampler(Image<double>* in, double scale,
                                      double sigma_scale) {
-  image_double aux, out;
+  Image<double>* aux = nullptr;
+  Image<double>* out = nullptr;
   ntuple_list kernel;
   unsigned int N, M, h, n, x, y, i;
   int xc, yc, j, double_x_size, double_y_size;
@@ -1395,8 +1246,8 @@ static image_double gaussian_sampler(image_double in, double scale,
     error("gaussian_sampler: the output image size exceeds the handled size.");
   N = (unsigned int) ceil(in->xsize * scale);
   M = (unsigned int) ceil(in->ysize * scale);
-  aux = new_image_double(N, in->ysize);
-  out = new_image_double(N, M);
+  aux = new Image<double>(N, in->ysize);
+  out = new Image<double>(N, M);
 
   /* sigma, kernel size and memory for the kernel */
   sigma = scale < 1.0 ? sigma_scale / scale : sigma_scale;
@@ -1481,7 +1332,6 @@ static image_double gaussian_sampler(image_double in, double scale,
 
   /* free memory */
   free_ntuple_list(kernel);
-  free_image_double(aux);
-
+  delete aux;
   return out;
 }
