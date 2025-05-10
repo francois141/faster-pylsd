@@ -106,9 +106,15 @@
 #include <chrono>
 #include <functional>
 #include <future>
-#include "parameters.h"
 
 #include "lsd.h"
+
+constexpr bool with_gaussian = false;
+
+constexpr unsigned int stride_ll_angle_x = 2;
+constexpr unsigned int stride_ll_angle_y = 2;
+constexpr unsigned int numberThreads = 16;
+constexpr unsigned int early_stop_iterations = 100000;
 
 constexpr double m_ln10 = 2.30258509299404568402;
 constexpr double m_pi = 3.14159265358979323846;
@@ -122,7 +128,7 @@ double UPM_GRADIENT_THRESHOLD_LSD = 5.2262518595055063;
 /** Chained list of coordinates.
  */
 struct coorlist {
-  int x, y;
+  unsigned int x, y;
   struct coorlist *next;
 };
 
@@ -250,7 +256,7 @@ static void grad_angle_orientation(Image<double>& in, double threshold, Image<do
 
   int stride = ceil(((double)p) / numberThreads);
   std::function worker = [&](int idx) {
-    auto [from, to] = std::make_pair(idx * stride + 1, std::min((idx+1) * stride + 1, (int)p));
+    auto [from, to] = std::make_pair(idx * stride + 1, std::min((idx+1) * stride + 1, static_cast<int>(p)));
     for (int x = from; x < to; x++) {
       for (int y = 1; y < n; y++) {
         unsigned adr = y * p + x;
@@ -313,16 +319,12 @@ static void grad_angle_orientation(Image<double>& in, double threshold, Image<do
     - a pointer 'mem_p' to the memory used by 'list_p' to be able to
       free the memory when it is not used anymore.
  */
-static Image<double>* ll_angle(Image<double>& in, double threshold,
+void ll_angle(Image<double>& in, double threshold,
                              struct coorlist **list_p, void **mem_p,
                              Image<double>*& modgrad, Image<double>*& g, unsigned int n_bins) {
-  unsigned int i;
   /* the rest of the variables are used for pseudo-ordering
      the gradient magnitude values */
   int list_count = 0;
-  struct coorlist *list;
-  struct coorlist **range_l_s; /* array of pointers to start of bin list */
-  struct coorlist **range_l_e; /* array of pointers to end of bin list */
   struct coorlist *start;
   struct coorlist *end;
   double max_grad = 0.0;
@@ -340,31 +342,32 @@ static Image<double>* ll_angle(Image<double>& in, double threshold,
   unsigned int p = in.xsize;
 
   /* get memory for "ordered" list of pixels */
-  list = (struct coorlist *) calloc(n * p, sizeof(struct coorlist));
+  struct coorlist *list = (struct coorlist *) calloc(n * p, sizeof(struct coorlist));
   *mem_p = (void *) list;
-  range_l_s = (struct coorlist **) calloc((size_t) n_bins,
-                                          sizeof(struct coorlist *));
-  range_l_e = (struct coorlist **) calloc((size_t) n_bins,
-                                          sizeof(struct coorlist *));
-  if (list == nullptr || range_l_s == nullptr || range_l_e == nullptr)
+
+  /* array of pointers to start of bin list */
+  std::vector<struct coorlist*> range_l_s(n_bins);
+  std::vector<struct coorlist*> range_l_e(n_bins);
+
+  if (list == nullptr)
     error("not enough memory.");
-  for (i = 0; i < n_bins; i++) range_l_s[i] = range_l_e[i] = nullptr;
+  for (unsigned int i = 0; i < n_bins; i++) range_l_s[i] = range_l_e[i] = nullptr;
 
   if (modgrad == nullptr || g == nullptr) {
     grad_angle_orientation(in, threshold, g, modgrad);
   }
 
-  for (i = 0; i < modgrad->xsize * modgrad->ysize; i++) {
-    if (modgrad->data[i] > max_grad) max_grad = modgrad->data[i];
+  for (unsigned i = 0; i < modgrad->xsize * modgrad->ysize; i++) {
+    if(max_grad < modgrad->data[i]) max_grad = modgrad->data[i];
   }
 
   /* compute histogram of gradient values */
-  for (unsigned int x = 0; x < p - 1; x += stride_ll_angle_x)
+  for (unsigned int x = 0; x < p - 1; x += stride_ll_angle_x) {
     for (unsigned int y = 0; y < n - 1; y += stride_ll_angle_y) {
       double norm = modgrad->data[y * p + x];
 
       /* store the point in the right bin according to its norm */
-      i = static_cast<unsigned int>(norm * static_cast<double>(n_bins) / max_grad);
+      unsigned i = static_cast<unsigned int>(norm * static_cast<double>(n_bins) / max_grad);
       if (i >= n_bins) i = n_bins - 1;
       if (range_l_e[i] == nullptr)
         range_l_s[i] = range_l_e[i] = list + list_count++;
@@ -372,20 +375,22 @@ static Image<double>* ll_angle(Image<double>& in, double threshold,
         range_l_e[i]->next = list + list_count;
         range_l_e[i] = list + list_count++;
       }
-      range_l_e[i]->x = (int) x;
-      range_l_e[i]->y = (int) y;
+      range_l_e[i]->x = x;
+      range_l_e[i]->y = y;
       range_l_e[i]->next = nullptr;
     }
+  }
 
   /* Make the list of pixels (almost) ordered by norm value.
      It starts by the larger bin, so the list starts by the
      pixels with the highest gradient value. Pixels would be ordered
      by norm value, up to a precision given by max_grad/n_bins.
    */
+  unsigned int i;
   for (i = n_bins - 1; i > 0 && range_l_s[i] == nullptr; i--);
   start = range_l_s[i];
   end = range_l_e[i];
-  if (start != nullptr)
+  if (start != nullptr) {
     while (i > 0) {
       --i;
       if (range_l_s[i] != nullptr) {
@@ -393,13 +398,9 @@ static Image<double>* ll_angle(Image<double>& in, double threshold,
         end = range_l_e[i];
       }
     }
+  }
+
   *list_p = start;
-
-  /* free memory */
-  free((void *) range_l_s);
-  free((void *) range_l_e);
-
-  return g;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -407,17 +408,15 @@ static Image<double>* ll_angle(Image<double>& in, double threshold,
  */
 static int isaligned(int x, int y, Image<double>* angles, double theta,
                      double prec) {
-  double a;
-
   /* check parameters */
   if (angles == nullptr || angles->data == nullptr)
     error("isaligned: invalid image 'angles'.");
-  if (x < 0 || y < 0 || x >= (int) angles->xsize || y >= (int) angles->ysize)
+  if (x < 0 || y < 0 || x >= angles->xsize || y >= angles->ysize)
     error("isaligned: (x,y) out of the image.");
   if (prec < 0.0) error("isaligned: 'prec' must be positive.");
 
   /* angle at pixel (x,y) */
-  a = angles->data[x + y * angles->xsize];
+  double a = angles->data[x + y * angles->xsize];
 
   /* pixels whose level-line angle is not defined
      are considered as NON-aligned */
@@ -896,7 +895,7 @@ static void ri_inc(rect_iter *i) {
       i->ye = inter_hi((double) i->x, i->vx[1], i->vy[1], i->vx[2], i->vy[2]);
 
     /* new y */
-    i->y = (int) ceil(i->ys);
+    i->y = ceil(i->ys);
   }
 }
 
@@ -961,8 +960,8 @@ static rect_iter *ri_ini(struct rect *r) {
      one, so 'ri_inc' (that will increase x by one) will advance to
      the first 'column'.
    */
-  i->x = (int) ceil(i->vx[0]) - 1;
-  i->y = (int) ceil(i->vy[0]);
+  i->x = static_cast<int>(ceil(i->vx[0]) - 1);
+  i->y = static_cast<int>(ceil(i->vy[0]));
   i->ys = i->ye = -DBL_MAX;
 
   /* advance to the first pixel */
@@ -986,7 +985,7 @@ static double rect_nfa(struct rect *rec, Image<double>* angles, double logNT) {
   rect_iter *i;
   for (i = ri_ini(rec); !ri_end(i); ri_inc(i)) /* rectangle iterator */
     if (i->x >= 0 && i->y >= 0 &&
-        i->x < (int) angles->xsize && i->y < (int) angles->ysize) {
+        i->x < angles->xsize && i->y < angles->ysize) {
       ++pts; /* total number of pixels counter */
       if (isaligned(i->x, i->y, angles, rec->theta, rec->prec))
         ++alg; /* aligned points counter */
@@ -1072,8 +1071,8 @@ static Image<double> gaussian_sampler(Image<double>& in, double scale,
     error("gaussian_sampler: 'sigma_scale' must be positive.");
 
   /* compute new image size and get memory for images */
-  if (in.xsize * scale > (double) UINT_MAX ||
-      in.ysize * scale > (double) UINT_MAX)
+  if (in.xsize * scale > UINT_MAX ||
+      in.ysize * scale > UINT_MAX)
     error("gaussian_sampler: the output image size exceeds the handled size.");
   unsigned int N = static_cast<unsigned int>(ceil(in.xsize * scale));
   unsigned int M = static_cast<unsigned int>(ceil(in.ysize * scale));
@@ -1123,7 +1122,7 @@ static Image<double> gaussian_sampler(Image<double>& in, double scale,
         /* symmetry boundary condition */
         while (j < 0) j += double_x_size;
         while (j >= double_x_size) j -= double_x_size;
-        if (j >= (int) in.xsize) j = double_x_size - 1 - j;
+        if (j >= in.xsize) j = double_x_size - 1 - j;
 
         sum += in.data[j + y * in.xsize] * kernel[i];
       }
@@ -1141,7 +1140,7 @@ static Image<double> gaussian_sampler(Image<double>& in, double scale,
     double yy = (double) y / scale;
     /* coordinate (0.0,0.0) is in the center of pixel (0,0),
        so the pixel with yc=0 get the values of yy from -0.5 to 0.5 */
-    int yc = (int) floor(yy + 0.5);
+    int yc = floor(yy + 0.5);
     gaussian_kernel(kernel, sigma, (double) h + yy - (double) yc);
     /* the kernel must be computed for each y because the fine
        offset yy-yc is different in each case */
@@ -1154,7 +1153,7 @@ static Image<double> gaussian_sampler(Image<double>& in, double scale,
         /* symmetry boundary condition */
         while (j < 0) j += double_y_size;
         while (j >= double_y_size) j -= double_y_size;
-        if (j >= (int) in.ysize) j = double_y_size - 1 - j;
+        if (j >= in.ysize) j = double_y_size - 1 - j;
 
         sum += aux.data[x + j * aux.xsize] * kernel[i];
       }
@@ -1162,7 +1161,7 @@ static Image<double> gaussian_sampler(Image<double>& in, double scale,
     }
   }
 
-  return std::move(out);
+  return out;
 }
 /*----------------------------------------------------------------------------*/
 /*---------------------------------- Regions ---------------------------------*/
@@ -1362,7 +1361,7 @@ static void region_grow(int x, int y, Image<double>* angles, struct point *reg,
                         double prec) {
 
   /* check parameters */
-  if (x < 0 || y < 0 || x >= (int) angles->xsize || y >= (int) angles->ysize)
+  if (x < 0 || y < 0 || x >= angles->xsize || y >= angles->ysize)
     error("region_grow: (x,y) out of the image.");
   if (angles == nullptr || angles->data == nullptr)
     error("region_grow: invalid image 'angles'.");
@@ -1385,7 +1384,7 @@ static void region_grow(int x, int y, Image<double>* angles, struct point *reg,
   for (unsigned int i = 0; i < *reg_size; i++)
     for (unsigned int xx = reg[i].x - 1; xx <= reg[i].x + 1; xx++)
       for (unsigned int yy = reg[i].y - 1; yy <= reg[i].y + 1; yy++)
-        if (xx >= 0 && yy >= 0 && xx < (int) used->xsize && yy < (int) used->ysize &&
+        if (xx >= 0 && yy >= 0 && xx < used->xsize && yy < used->ysize &&
             used->data[xx + yy * used->xsize] != USED &&
             isaligned(xx, yy, angles, *reg_angle, prec)) {
           /* add point */
@@ -1702,17 +1701,19 @@ double *LineSegmentDetection(int *n_out,
 
   if (scale != 1.0 || with_gaussian) {
     Image<double> scaled_image = gaussian_sampler(image, scale, sigma_scale);
-    if (grad_nfa)
+    if (grad_nfa) {
       ll_angle(scaled_image, rho, &list_pp, &mem_pp, img_gradnorm, img_grad_angle, (unsigned int) n_bins);
+    }
     ll_angle(scaled_image, rho, &list_p, &mem_p, modgrad, angles, (unsigned int) n_bins);
   } else {
-    if (grad_nfa)
+    if (grad_nfa) {
       ll_angle(image, rho, &list_pp, &mem_pp, img_gradnorm, img_grad_angle, (unsigned int) n_bins);
+    }
     ll_angle(image, rho, &list_p, &mem_p, modgrad, angles, (unsigned int) n_bins);
   }
 
-  unsigned int xsize = angles->xsize;
-  unsigned int ysize = angles->ysize;
+  const unsigned int xsize = angles->xsize;
+  const unsigned int ysize = angles->ysize;
 
   /* Number of Tests - NT
 
@@ -1729,7 +1730,7 @@ double *LineSegmentDetection(int *n_out,
 */
   double logNT = 5.0 * (log10((double) xsize) + log10((double) ysize)) / 2.0
     + log10(11.0);
-  int min_reg_size = (int) (-logNT / log10(p)); /* minimal number of points in region
+  int min_reg_size = static_cast<int>(-logNT / log10(p)); /* minimal number of points in region
                                              that can give a meaningful event */
 
   std::vector<point*> registers_vector(numberThreads);
@@ -1738,7 +1739,6 @@ double *LineSegmentDetection(int *n_out,
   }
 
   /* initialize some structures */
-
   if (reg_img != nullptr && reg_x != nullptr && reg_y != nullptr) /* save region data */
     region = new Image<int>(angles->xsize, angles->ysize, 0);
   auto used = new Image<char>(xsize, ysize, static_cast<char>(0));
@@ -1753,7 +1753,7 @@ double *LineSegmentDetection(int *n_out,
     unsigned int counter = 0;
     for (; list_p2 != nullptr; list_p2 = list_p2->next) {
       if(counter++ % numberThreads != index) continue;
-      if(counter >= 100000) break;
+      if (counter >= early_stop_iterations) break;
 
     auto [x,y] = std::make_pair(list_p2->x, list_p2->y);
     if (used->data[x + y * used->xsize] == NOTUSED &&
@@ -1861,8 +1861,8 @@ double *LineSegmentDetection(int *n_out,
     *reg_img = region->data;
     if (region->xsize > (unsigned int) INT_MAX)
       error("region image to big to fit in INT sizes.");
-    *reg_x = (int) (region->xsize);
-    *reg_y = (int) (region->ysize);
+    *reg_x = region->xsize;
+    *reg_y = region->ysize;
 
     /* free the 'region' structure.
        we cannot use the function 'free_Image<int> *' because we need to keep
@@ -1887,7 +1887,7 @@ double *lsd(int *n_out, double *img, int X, int Y, double gradientThreshold, dou
   double ang_th = 22.5;     /* Gradient angle tolerance in degrees.           */
   // double log_eps = 0.0;     /* Detection threshold: -log10(NFA) > log_eps     */
   double density_th = 0.7;  /* Minimal density of region points in rectangle. */
-  int n_bins = 1024;        /* Number of bins in pseudo-ordering of gradient
+  constexpr int n_bins = 1024;        /* Number of bins in pseudo-ordering of gradient
                                modulus.                                       */
 
   double prev_grad_val = UPM_GRADIENT_THRESHOLD_LSD;
