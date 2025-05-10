@@ -132,7 +132,9 @@ struct coorlist {
   coorlist *next;
 };
 
-struct point { int x, y; };
+struct point {
+  int x, y;
+};
 
 static void error(const char *msg) {
   std::cerr << "LSD error: " << msg << "\n";
@@ -177,7 +179,6 @@ static int double_equal(double a, double b) {
 /** Computes Euclidean distance between point (x1,y1) and point (x2,y2).
  */
 
-// TODO: Add concept here
 template<typename T>
 static T dist(T x1, T y1, T x2, T y2) {
   return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
@@ -187,15 +188,14 @@ static T dist(T x1, T y1, T x2, T y2) {
 /*-----------------------------    Image type    -----------------------------*/
 /*----------------------------------------------------------------------------*/
 
-template <typename  T>
+template<typename T>
 class Image {
-
 public:
   Image(unsigned int in_xsize, unsigned int in_ysize) : xsize(in_xsize), ysize(in_ysize) {
     if (xsize == 0 || ysize == 0) error("new Image_char: invalid image size.");
 
-    this->data = static_cast<T*>(calloc(xsize * ysize,
-                                           sizeof(T)));
+    this->data = static_cast<T *>(calloc(xsize * ysize,
+                                         sizeof(T)));
     if (this->data == nullptr) error("not enough memory.");
 
     this->borrowed = false;
@@ -208,17 +208,18 @@ public:
     this->borrowed = false;
   }
 
-  Image(unsigned in_xsize, unsigned int in_ysize, T* in_data): xsize(in_xsize), ysize(in_ysize), data(in_data) {
+  Image(unsigned in_xsize, unsigned int in_ysize, T *in_data): xsize(in_xsize), ysize(in_ysize), data(in_data) {
     borrowed = true;
   }
 
- ~Image() {
-    if(!this->borrowed) {
+  ~Image() {
+    if (!this->borrowed) {
       free((void *) this->data);
     }
- }
+  }
 
-  // TODO: Delete the assignment operator
+  Image &operator=(const Image &other) = delete;
+
   unsigned int xsize, ysize;
   T *data;
   bool borrowed;
@@ -236,7 +237,7 @@ public:
  * @param modgrad the module of the gradient
  */
 
-static void grad_angle_orientation(Image<double>& in, double threshold, Image<double>*& g, Image<double>*& modgrad){
+static void grad_angle_orientation(Image<double> &in, double threshold, Image<double> *&g, Image<double> *&modgrad) {
   unsigned int n, p;
   n = in.ysize;
   p = in.xsize;
@@ -252,11 +253,11 @@ static void grad_angle_orientation(Image<double>& in, double threshold, Image<do
   for (int y = 0; y < n; y++) g->data[p * y] = NOTDEF;
 
   /* compute gradient on the remaining pixels */
-  std::vector<std::pair<int,int>> ranges(numberThreads);
+  std::vector<std::pair<int, int> > ranges(numberThreads);
 
   int stride = p / numberThreads;
   std::function worker = [&](int idx) {
-    auto [from, to] = std::make_pair(idx * stride + 1, std::min((idx+1) * stride + 1, static_cast<int>(p)));
+    auto [from, to] = std::make_pair(idx * stride + 1, std::min((idx + 1) * stride + 1, static_cast<int>(p)));
     for (int x = from; x < to; x++) {
       for (int y = 1; y < n; y++) {
         unsigned adr = y * p + x;
@@ -294,12 +295,12 @@ static void grad_angle_orientation(Image<double>& in, double threshold, Image<do
   };
 
   std::vector<std::thread> threads(numberThreads);
-  for(int i = 0; i < numberThreads;i++) {
+  for (int i = 0; i < numberThreads; i++) {
     threads[i] = std::thread(worker, i);
   }
 
-  for(std::thread &t: threads) {
-      t.join();
+  for (std::thread &t: threads) {
+    t.join();
   }
 }
 
@@ -319,9 +320,9 @@ static void grad_angle_orientation(Image<double>& in, double threshold, Image<do
     - a pointer 'mem_p' to the memory used by 'list_p' to be able to
       free the memory when it is not used anymore.
  */
-void ll_angle(Image<double>& in, double threshold,
-                             struct coorlist **list_p, void **mem_p,
-                             Image<double>*& modgrad, Image<double>*& g, unsigned int n_bins) {
+void ll_angle(Image<double> &in, double threshold,
+              struct coorlist **list_p, void **mem_p,
+              Image<double> *&modgrad, Image<double> *&g, unsigned int n_bins) {
   /* the rest of the variables are used for pseudo-ordering
      the gradient magnitude values */
   int list_count = 0;
@@ -340,13 +341,13 @@ void ll_angle(Image<double>& in, double threshold,
   unsigned int p = in.xsize;
 
   /* get memory for "ordered" list of pixels */
-  coorlist* list = static_cast<coorlist *>(calloc(n * p, sizeof(struct coorlist)));
+  coorlist *list = static_cast<coorlist *>(calloc(n * p, sizeof(struct coorlist)));
 
   *mem_p = (void *) list;
-  coorlist** range_l_s = static_cast<coorlist**>(calloc((size_t) n_bins,
-                                          sizeof(struct coorlist *)));
-  coorlist** range_l_e = static_cast<coorlist**>(calloc((size_t) n_bins,
-                                          sizeof(struct coorlist *)));
+  coorlist **range_l_s = static_cast<coorlist **>(calloc((size_t) n_bins,
+                                                         sizeof(struct coorlist *)));
+  coorlist **range_l_e = static_cast<coorlist **>(calloc((size_t) n_bins,
+                                                         sizeof(struct coorlist *)));
 
   if (list == nullptr || range_l_s == nullptr || range_l_e == nullptr)
     error("not enough memory.");
@@ -386,8 +387,8 @@ void ll_angle(Image<double>& in, double threshold,
    */
   unsigned int i;
   for (i = n_bins - 1; i > 0 && range_l_s[i] == nullptr; i--);
-  coorlist* start = range_l_s[i];
-  coorlist* end = range_l_e[i];
+  coorlist *start = range_l_s[i];
+  coorlist *end = range_l_e[i];
   if (start != nullptr)
     while (i > 0) {
       --i;
@@ -406,7 +407,7 @@ void ll_angle(Image<double>& in, double threshold,
 /*----------------------------------------------------------------------------*/
 /** Is point (x,y) aligned to angle theta, up to precision 'prec'?
  */
-static int isaligned(int x, int y, Image<double>* angles, double theta,
+static int isaligned(int x, int y, Image<double> *angles, double theta,
                      double prec) {
   /* check parameters */
   if (angles == nullptr || angles->data == nullptr)
@@ -420,7 +421,7 @@ static int isaligned(int x, int y, Image<double>* angles, double theta,
 
   /* pixels whose level-line angle is not defined
      are considered as NON-aligned */
-  if (a == NOTDEF) return false;  /* there is no need to call the function
+  if (a == NOTDEF) return false; /* there is no need to call the function
                                       'double_equal' here because there is
                                       no risk of problems related to the
                                       comparison doubles, we are only
@@ -488,9 +489,11 @@ static inline double angle_diff_signed(double a, double b) {
       q6 = 2.50662827511.
  */
 static double log_gamma_lanczos(double x) {
-  static double q[7] = {75122.6331530, 80916.6278952, 36308.2951477,
-                        8687.24529705, 1168.92649479, 83.8676043424,
-                        2.50662827511};
+  static double q[7] = {
+    75122.6331530, 80916.6278952, 36308.2951477,
+    8687.24529705, 1168.92649479, 83.8676043424,
+    2.50662827511
+  };
   double a = (x + 0.5) * log(x + 5.5) - (x + 5.5);
   double b = 0.0;
 
@@ -520,7 +523,7 @@ static double log_gamma_lanczos(double x) {
  */
 static inline double log_gamma_windschitl(double x) {
   return 0.918938533204673 + (x - 0.5) * log(x) - x
-      + 0.5 * x * log(x * sinh(1 / x) + 1 / (810.0 * pow(x, 6.0)));
+         + 0.5 * x * log(x * sinh(1 / x) + 1 / (810.0 * pow(x, 6.0)));
 }
 
 /*----------------------------------------------------------------------------*/
@@ -529,7 +532,7 @@ static inline double log_gamma_windschitl(double x) {
     otherwise use log_gamma_lanczos().
  */
 static inline double log_gamma(double x) {
-  return (x)>15.0?log_gamma_windschitl(x):log_gamma_lanczos(x);
+  return (x) > 15.0 ? log_gamma_windschitl(x) : log_gamma_lanczos(x);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -577,8 +580,8 @@ static inline double log_gamma(double x) {
 static double nfa(int n, int k, double p, double logNT) {
   //  Size of the table to store already computed inverse values.
   constexpr int tabsize = 100000;
-  static double inv[tabsize];   /* table to keep computed inverse values */
-  double tolerance = 0.1;       /* an error of 10% in the result is accepted */
+  static double inv[tabsize]; /* table to keep computed inverse values */
+  double tolerance = 0.1; /* an error of 10% in the result is accepted */
   double log1term, term, bin_term, mult_term, bin_tail, err, p_term;
   int i;
 
@@ -602,17 +605,17 @@ static double nfa(int n, int k, double p, double logNT) {
      We use this to compute the first term. Actually the log of it.
    */
   log1term = log_gamma((double) n + 1.0) - log_gamma((double) k + 1.0)
-      - log_gamma((double) (n - k) + 1.0)
-      + (double) k * log(p) + (double) (n - k) * log(1.0 - p);
+             - log_gamma((double) (n - k) + 1.0)
+             + (double) k * log(p) + (double) (n - k) * log(1.0 - p);
   term = exp(log1term);
 
   /* in some cases no more computations are needed */
-  if (double_equal(term, 0.0))              /* the first term is almost zero */
+  if (double_equal(term, 0.0)) /* the first term is almost zero */
   {
-    if ((double) k > (double) n * p)     /* at begin or end of the tail?  */
-      return -log1term / M_LN10 - logNT;  /* end: use just the first term  */
+    if ((double) k > (double) n * p) /* at begin or end of the tail?  */
+      return -log1term / M_LN10 - logNT; /* end: use just the first term  */
     else
-      return -logNT;                      /* begin: the tail is roughly 1  */
+      return -logNT; /* begin: the tail is roughly 1  */
   }
 
   /* compute more terms if needed */
@@ -631,9 +634,9 @@ static double nfa(int n, int k, double p, double logNT) {
        because divisions are expensive.
        p/(1-p) is computed only once and stored in 'p_term'.
      */
-    bin_term = (double) (n - i + 1) * (i < tabsize ?
-                                       (inv[i] != 0.0 ? inv[i] : (inv[i] = 1.0 / (double) i)) :
-                                       1.0 / (double) i);
+    bin_term = (double) (n - i + 1) * (i < tabsize
+                                         ? (inv[i] != 0.0 ? inv[i] : (inv[i] = 1.0 / (double) i))
+                                         : 1.0 / (double) i);
 
     mult_term = bin_term * p_term;
     term *= mult_term;
@@ -644,7 +647,7 @@ static double nfa(int n, int k, double p, double logNT) {
          the i term can be bounded by a geometric series of form
          term_i * sum mult_term_i^j.                            */
       err = term * ((1.0 - pow(mult_term, (double) (n - i + 1))) /
-          (1.0 - mult_term) - 1.0);
+                    (1.0 - mult_term) - 1.0);
 
       /* One wants an error at most of tolerance*final_result, or:
          tolerance * abs(-log10(bin_tail)-logNT).
@@ -671,12 +674,12 @@ static double nfa(int n, int k, double p, double logNT) {
  */
 class Rectangle {
 public:
-
   [[nodiscard]] Rectangle() = default;
 
   [[nodiscard]] Rectangle(const double x1, const double y1, const double x2, const double y2, const double width,
-    const double x, const double y, const double theta, const double dx, const double dy, const double prec,
-    const double p)
+                          const double x, const double y, const double theta, const double dx, const double dy,
+                          const double prec,
+                          const double p)
     : x1(x1),
       y1(y1),
       x2(x2),
@@ -691,17 +694,17 @@ public:
       p(p) {
   }
 
-  double x1, y1, x2, y2;  /* first and second point of the line segment */
-  double width;        /* rectangle width */
-  double x, y;          /* center of the rectangle */
-  double theta;        /* angle */
-  double dx, dy;        /* (dx,dy) is vector oriented as the line segment */
-  double prec;         /* tolerance angle */
-  double p;            /* probability of a point with angle within 'prec' */
+  double x1, y1, x2, y2; /* first and second point of the line segment */
+  double width; /* rectangle width */
+  double x, y; /* center of the rectangle */
+  double theta; /* angle */
+  double dx, dy; /* (dx,dy) is vector oriented as the line segment */
+  double prec; /* tolerance angle */
+  double p; /* probability of a point with angle within 'prec' */
 
-
-  Rectangle& operator=(const Rectangle& other) {
-    Rectangle r = Rectangle(other.x1, other.y1, other.x2, other.y2, other.width, other.x, other.y, other.theta, other.dx, other.dy, other.prec, other.p);
+  Rectangle &operator=(const Rectangle &other) {
+    Rectangle r = Rectangle(other.x1, other.y1, other.x2, other.y2, other.width, other.x, other.y, other.theta,
+                            other.dx, other.dy, other.prec, other.p);
     return r;
   }
 };
@@ -763,10 +766,10 @@ public:
     explored. So, 'ys' < 'ye'.
  */
 typedef struct {
-  double vx[4];  /* rectangle's corner X coordinates in circular order */
-  double vy[4];  /* rectangle's corner Y coordinates in circular order */
-  double ys, ye;  /* start and end Y values of current 'column' */
-  int x, y;       /* coordinates of currently explored pixel */
+  double vx[4]; /* rectangle's corner X coordinates in circular order */
+  double vy[4]; /* rectangle's corner Y coordinates in circular order */
+  double ys, ye; /* start and end Y values of current 'column' */
+  int x, y; /* coordinates of currently explored pixel */
 } rect_iter;
 
 /*----------------------------------------------------------------------------*/
@@ -976,7 +979,7 @@ static rect_iter *ri_ini(Rectangle *r) {
 /*----------------------------------------------------------------------------*/
 /** Compute a rectangle's NFA value.
  */
-static double rect_nfa(Rectangle *rec, Image<double>* angles, double logNT) {
+static double rect_nfa(Rectangle *rec, Image<double> *angles, double logNT) {
   int pts = 0;
   int alg = 0;
 
@@ -1010,7 +1013,7 @@ static double rect_nfa(Rectangle *rec, Image<double>* angles, double logNT) {
     in the middle point between values 'kernel->values[0]'
     and 'kernel->values[1]'.
  */
-static void gaussian_kernel(std::vector<double>& kernel, double sigma, double mean) {
+static void gaussian_kernel(std::vector<double> &kernel, double sigma, double mean) {
   double sum = 0.0;
 
   /* check parameters */
@@ -1064,8 +1067,8 @@ static void gaussian_kernel(std::vector<double>& kernel, double sigma, double me
     in the x axis, and then the combined Gaussian kernel and sampling
     in the y axis.
  */
-static Image<double> gaussian_sampler(Image<double>& in, double scale,
-                                     double sigma_scale) {
+static Image<double> gaussian_sampler(Image<double> &in, double scale,
+                                      double sigma_scale) {
   /* check parameters */
   if (in.data == nullptr || in.xsize == 0 || in.ysize == 0)
     error("gaussian_sampler: invalid image.");
@@ -1166,6 +1169,7 @@ static Image<double> gaussian_sampler(Image<double>& in, double scale,
 
   return out;
 }
+
 /*----------------------------------------------------------------------------*/
 /*---------------------------------- Regions ---------------------------------*/
 /*----------------------------------------------------------------------------*/
@@ -1228,7 +1232,7 @@ static Image<double> gaussian_sampler(Image<double>& in, double scale,
     get better numeric precision).
  */
 static double get_theta(point *reg, int reg_size, double x, double y,
-                        Image<double>* modgrad, double reg_angle, double prec) {
+                        Image<double> *modgrad, double reg_angle, double prec) {
   double Ixx = 0.0;
   double Iyy = 0.0;
   double Ixy = 0.0;
@@ -1267,9 +1271,8 @@ static double get_theta(point *reg, int reg_size, double x, double y,
 /** Computes a rectangle that covers a region of points.
  */
 static void region2rect(point *reg, int reg_size,
-                        Image<double>* modgrad, double reg_angle,
+                        Image<double> *modgrad, double reg_angle,
                         double prec, double p, Rectangle *rec) {
-
   /* check parameters */
   if (reg == nullptr) error("region2rect: invalid region.");
   if (reg_size <= 1) error("region2rect: region size <= 1.");
@@ -1288,7 +1291,7 @@ static void region2rect(point *reg, int reg_size,
      and x_i,y_i are its coordinates.
    */
   double x = 0.0;
-  double y  = 0.0;
+  double y = 0.0;
   double sum = 0.0;
   for (int i = 0; i < reg_size; i++) {
     double weight = modgrad->data[reg[i].x + reg[i].y * modgrad->xsize];
@@ -1359,10 +1362,9 @@ static void region2rect(point *reg, int reg_size,
 /** Build a region of pixels that share the same angle, up to a
     tolerance 'prec', starting at point (x,y).
  */
-static void region_grow(int x, int y, Image<double>* angles, point *reg,
+static void region_grow(int x, int y, Image<double> *angles, point *reg,
                         int *reg_size, double *reg_angle, Image<char> *used,
                         double prec) {
-
   /* check parameters */
   if (x < 0 || y < 0 || x >= angles->xsize || y >= angles->ysize)
     error("region_grow: (x,y) out of the image.");
@@ -1378,7 +1380,7 @@ static void region_grow(int x, int y, Image<double>* angles, point *reg,
   *reg_size = 1;
   reg[0].x = x;
   reg[0].y = y;
-  *reg_angle = angles->data[x + y * angles->xsize];  /* region's angle */
+  *reg_angle = angles->data[x + y * angles->xsize]; /* region's angle */
   double sumdx = cos(*reg_angle);
   double sumdy = sin(*reg_angle);
   used->data[x + y * used->xsize] = USED;
@@ -1407,7 +1409,7 @@ static void region_grow(int x, int y, Image<double>* angles, point *reg,
 /** Try some rectangles variations to improve NFA value. Only if the
     rectangle is not meaningful (i.e., log_nfa <= log_eps).
  */
-static double rect_improve(Rectangle *rec, Image<double>* angles,
+static double rect_improve(Rectangle *rec, Image<double> *angles,
                            double logNT, double log_eps) {
   double delta = 0.5;
   double delta_2 = delta / 2.0;
@@ -1504,11 +1506,10 @@ static double rect_improve(Rectangle *rec, Image<double>* angles,
     density of region points or to discard the region if too small.
  */
 static int reduce_region_radius(point *reg, int *reg_size,
-                                Image<double>* modgrad, double reg_angle,
+                                Image<double> *modgrad, double reg_angle,
                                 double prec, double p, Rectangle *rec,
-                                Image<char> *used, Image<double>* angles,
+                                Image<char> *used, Image<double> *angles,
                                 double density_th) {
-
   /* check parameters */
   if (reg == nullptr) error("reduce_region_radius: invalid pointer 'reg'.");
   if (reg_size == nullptr)
@@ -1522,7 +1523,7 @@ static int reduce_region_radius(point *reg, int *reg_size,
 
   /* compute region points density */
   double density = (double) *reg_size /
-      (dist(rec->x1, rec->y1, rec->x2, rec->y2) * rec->width);
+                   (dist(rec->x1, rec->y1, rec->x2, rec->y2) * rec->width);
 
   /* if the density criterion is satisfied there is nothing to do */
   if (density >= density_th) return true;
@@ -1539,7 +1540,7 @@ static int reduce_region_radius(point *reg, int *reg_size,
     rad *= 0.75; /* reduce region's radius to 75% of its value */
 
     /* remove points from the region and update 'used' map */
-    for (unsigned  int i = 0; i < *reg_size; i++)
+    for (unsigned int i = 0; i < *reg_size; i++)
       if (dist(xc, yc, (double) reg[i].x, (double) reg[i].y) > rad) {
         /* point not kept, mark it as NOTUSED */
         used->data[reg[i].x + reg[i].y * used->xsize] = NOTUSED;
@@ -1559,7 +1560,7 @@ static int reduce_region_radius(point *reg, int *reg_size,
 
     /* re-compute region points density */
     density = (double) *reg_size /
-        (dist(rec->x1, rec->y1, rec->x2, rec->y2) * rec->width);
+              (dist(rec->x1, rec->y1, rec->x2, rec->y2) * rec->width);
   }
 
   /* if this point is reached, the density criterion is satisfied */
@@ -1576,10 +1577,9 @@ static int reduce_region_radius(point *reg, int *reg_size,
     produce a rectangle with the right density of region points,
     'reduce_region_radius' is called to try to satisfy this condition.
  */
-static int refine(point *reg, int *reg_size, Image<double>* modgrad,
-                  double reg_angle, double prec, double p,  Rectangle *rec,
-                  Image<char> *used, Image<double>* angles, double density_th) {
-
+static int refine(point *reg, int *reg_size, Image<double> *modgrad,
+                  double reg_angle, double prec, double p, Rectangle *rec,
+                  Image<char> *used, Image<double> *angles, double density_th) {
   /* check parameters */
   if (reg == nullptr) error("refine: invalid pointer 'reg'.");
   if (reg_size == nullptr) error("refine: invalid pointer 'reg_size'.");
@@ -1592,7 +1592,7 @@ static int refine(point *reg, int *reg_size, Image<double>* modgrad,
 
   /* compute region points density */
   double density = (double) *reg_size /
-      (dist(rec->x1, rec->y1, rec->x2, rec->y2) * rec->width);
+                   (dist(rec->x1, rec->y1, rec->x2, rec->y2) * rec->width);
 
   /* if the density criterion is satisfied there is nothing to do */
   if (density >= density_th) return true;
@@ -1618,7 +1618,7 @@ static int refine(point *reg, int *reg_size, Image<double>* modgrad,
   }
   double mean_angle = sum / (double) n;
   double tau = 2.0 * sqrt((s_sum - 2.0 * mean_angle * sum) / (double) n
-                       + mean_angle * mean_angle); /* 2 * standard deviation */
+                          + mean_angle * mean_angle); /* 2 * standard deviation */
 
   /* find a new region from the same starting point and new angle tolerance */
   region_grow(reg[0].x, reg[0].y, angles, reg, reg_size, &reg_angle, used, tau);
@@ -1631,7 +1631,7 @@ static int refine(point *reg, int *reg_size, Image<double>* modgrad,
 
   /* re-compute region points density */
   density = (double) *reg_size /
-      (dist(rec->x1, rec->y1, rec->x2, rec->y2) * rec->width);
+            (dist(rec->x1, rec->y1, rec->x2, rec->y2) * rec->width);
 
   /*------ Second try: reduce region radius ------*/
   if (density < density_th)
@@ -1655,13 +1655,13 @@ double *LineSegmentDetection(int *n_out,
                              double scale, double sigma_scale, double quant,
                              double ang_th, double log_eps, double density_th,
                              int n_bins, bool grad_nfa,
-                             double * modgrad_ptr, double * angles_ptr,
+                             double *modgrad_ptr, double *angles_ptr,
                              int **reg_img, int *reg_x, int *reg_y) {
-  Image<int> * region = nullptr;
+  Image<int> *region = nullptr;
   coorlist *list_p, *list_pp;
   void *mem_p, *mem_pp;
   point *reg;
-  int ls_count = 0;                   /* line segments are numbered 1,2,3,... */
+  int ls_count = 0; /* line segments are numbered 1,2,3,... */
 
   /* check parameters */
   if (img == nullptr || X <= 0 || Y <= 0) error("invalid image input.");
@@ -1683,10 +1683,10 @@ double *LineSegmentDetection(int *n_out,
   rho = UPM_GRADIENT_THRESHOLD_LSD;
   // std::cout << "LSD Gradient threshold: " << rho << std::endl;
 
-  Image<double>* modgrad = nullptr;
-  Image<double>* angles = nullptr;
-  Image<double>* img_gradnorm = nullptr;
-  Image<double>* img_grad_angle = nullptr;
+  Image<double> *modgrad = nullptr;
+  Image<double> *angles = nullptr;
+  Image<double> *img_gradnorm = nullptr;
+  Image<double> *img_grad_angle = nullptr;
 
   // TODO: In the future handle case with modgrad_ptr and angles_ptr
   if (modgrad_ptr) {
@@ -1699,7 +1699,7 @@ double *LineSegmentDetection(int *n_out,
   auto start = std::chrono::high_resolution_clock::now();
 
   /* load and scale image (if necessary) and compute angle at each pixel */
-  Image image = Image<double>((unsigned ) X, (unsigned int) Y, img);
+  Image image = Image<double>((unsigned) X, (unsigned int) Y, img);
 
   if (scale != 1.0 || with_gaussian) {
     Image<double> scaled_image = gaussian_sampler(image, scale, sigma_scale);
@@ -1733,12 +1733,12 @@ double *LineSegmentDetection(int *n_out,
    log10(11) + 5/2 * (log10(X) + log10(Y)).
 */
   double logNT = 5.0 * (log10((double) xsize) + log10((double) ysize)) / 2.0
-    + log10(11.0);
+                 + log10(11.0);
   int min_reg_size = static_cast<int>(-logNT / log10(p)); /* minimal number of points in region
                                              that can give a meaningful event */
 
-  std::vector<point*> registers_vector(numberThreads);
-  for(int i = 0; i < numberThreads;i++) {
+  std::vector<point *> registers_vector(numberThreads);
+  for (int i = 0; i < numberThreads; i++) {
     registers_vector[i] = static_cast<point *>(malloc((xsize * ysize) * sizeof(point)));
   }
 
@@ -1747,7 +1747,7 @@ double *LineSegmentDetection(int *n_out,
     region = new Image<int>(angles->xsize, angles->ysize, 0);
   auto used = new Image<char>(xsize, ysize, static_cast<char>(0));
 
-  reg = static_cast<point*>(malloc((size_t) (xsize * ysize) * sizeof(point)));
+  reg = static_cast<point *>(malloc((size_t) (xsize * ysize) * sizeof(point)));
   if (reg == nullptr) error("not enough memory!");
 
   /* search for line segments */
@@ -1756,90 +1756,90 @@ double *LineSegmentDetection(int *n_out,
     auto list_p2 = list_p;
     unsigned int counter = 0;
     for (; list_p2 != nullptr; list_p2 = list_p2->next) {
-      if(counter++ % numberThreads != index) continue;
+      if (counter++ % numberThreads != index) continue;
       if (counter >= early_stop_iterations) break;
 
-    auto [x,y] = std::make_pair(list_p2->x, list_p2->y);
-    if (used->data[x + y * used->xsize] == NOTUSED &&
-        angles->data[x + y * angles->xsize] != NOTDEF)
+      auto [x,y] = std::make_pair(list_p2->x, list_p2->y);
+      if (used->data[x + y * used->xsize] == NOTUSED &&
+          angles->data[x + y * angles->xsize] != NOTDEF)
       /* there is no risk of double comparison problems here
          because we are only interested in the exact NOTDEF value */
-    {
-      // We don't want to share those value accross the threads
-      // Otherwise the threads will fights for it
-      Rectangle rec;
-      int reg_size;
-      double reg_angle;
-      /* find the region of connected point and ~equal angle */
-      region_grow(x, y, angles, registers_vector[index], &reg_size,
-                  &reg_angle, used, prec);
+      {
+        // We don't want to share those value accross the threads
+        // Otherwise the threads will fights for it
+        Rectangle rec;
+        int reg_size;
+        double reg_angle;
+        /* find the region of connected point and ~equal angle */
+        region_grow(x, y, angles, registers_vector[index], &reg_size,
+                    &reg_angle, used, prec);
 
-      /* reject small regions */
-      if (reg_size < min_reg_size) continue;
+        /* reject small regions */
+        if (reg_size < min_reg_size) continue;
 
-      /* construct rectangular approximation for the region */
-      region2rect(registers_vector[index], reg_size, modgrad, reg_angle, prec, p, &rec);
+        /* construct rectangular approximation for the region */
+        region2rect(registers_vector[index], reg_size, modgrad, reg_angle, prec, p, &rec);
 
-      double log_nfa;
-      /* compute NFA value */
-      if(grad_nfa)
-        log_nfa = rect_improve(&rec, img_grad_angle, logNT, log_eps);
-      else
-        log_nfa = rect_improve(&rec, angles, logNT, log_eps);
-      if (log_nfa <= log_eps) continue;
+        double log_nfa;
+        /* compute NFA value */
+        if (grad_nfa)
+          log_nfa = rect_improve(&rec, img_grad_angle, logNT, log_eps);
+        else
+          log_nfa = rect_improve(&rec, angles, logNT, log_eps);
+        if (log_nfa <= log_eps) continue;
 
-      /* A New Line Segment was found! */
-      ++ls_count;  /* increase line segment counter */
+        /* A New Line Segment was found! */
+        ++ls_count; /* increase line segment counter */
 
-      /* scale the result values if a subsampling was performed */
-      if (scale != 1.0) {
-        rec.x1 /= scale;
-        rec.y1 /= scale;
-        rec.x2 /= scale;
-        rec.y2 /= scale;
-        rec.width /= scale;
+        /* scale the result values if a subsampling was performed */
+        if (scale != 1.0) {
+          rec.x1 /= scale;
+          rec.y1 /= scale;
+          rec.x2 /= scale;
+          rec.y2 /= scale;
+          rec.width /= scale;
+        }
+
+        /* add region number to 'region' image if needed */
+        if (region != nullptr)
+          for (int i = 0; i < reg_size; i++)
+            region->data[reg[i].x + reg[i].y * region->xsize] = ls_count;
+
+        /* add line segment found to output */
+        output.push_back(rec.x1);
+        output.push_back(rec.y1);
+        output.push_back(rec.x2);
+        output.push_back(rec.y2);
+        output.push_back(rec.width);
+        output.push_back(rec.p);
+        output.push_back(log_nfa);
       }
-
-      /* add region number to 'region' image if needed */
-      if (region != nullptr)
-        for (int i = 0; i < reg_size; i++)
-          region->data[reg[i].x + reg[i].y * region->xsize] = ls_count;
-
-      /* add line segment found to output */
-      output.push_back(rec.x1);
-      output.push_back(rec.y1);
-      output.push_back(rec.x2);
-      output.push_back(rec.y2);
-      output.push_back(rec.width);
-      output.push_back(rec.p);
-      output.push_back(log_nfa);
     }
-   }
 
-   return output;
+    return output;
   };
 
-  std::vector<std::future<std::vector<double>>> futures(numberThreads);
-  for(int i = 0; i < numberThreads;i++) {
-    futures[i] = std::async(std::launch::async,worker, i);
+  std::vector<std::future<std::vector<double> > > futures(numberThreads);
+  for (int i = 0; i < numberThreads; i++) {
+    futures[i] = std::async(std::launch::async, worker, i);
   }
 
-  std::vector<std::vector<double>> values(numberThreads);
-  for(int i = 0; i < numberThreads;i++) {
+  std::vector<std::vector<double> > values(numberThreads);
+  for (int i = 0; i < numberThreads; i++) {
     values[i] = futures[i].get();
   }
 
   *n_out = 0;
-  for(std::vector<double> &points: values) *n_out += points.size();
+  for (std::vector<double> &points: values) *n_out += points.size();
 
-  double* buffer = static_cast<double*>(malloc(*n_out * sizeof(double)));
+  double *buffer = static_cast<double *>(malloc(*n_out * sizeof(double)));
 
   size_t idx = 0;
-  for(std::vector<double> &points: values) {
-    for(double entry: points) {
+  for (std::vector<double> &points: values) {
+    for (double entry: points) {
       buffer[idx++] = entry;
     }
-  } 
+  }
 
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> duration = end - start;
@@ -1883,23 +1883,24 @@ double *LineSegmentDetection(int *n_out,
  */
 double *lsd(int *n_out, double *img, int X, int Y, double gradientThreshold, double log_eps) {
   /* LSD parameters */
-  double scale = 1.0;       /* Scale the image by Gaussian filter to 'scale'. */
+  double scale = 1.0; /* Scale the image by Gaussian filter to 'scale'. */
   double sigma_scale = 0.6; /* Sigma for Gaussian filter is computed as
                                 sigma = sigma_scale/scale.                    */
-  double quant = 2.0;       /* Bound to the quantization error on the
+  double quant = 2.0; /* Bound to the quantization error on the
                                 gradient norm.                                */
-  double ang_th = 22.5;     /* Gradient angle tolerance in degrees.           */
+  double ang_th = 22.5; /* Gradient angle tolerance in degrees.           */
   // double log_eps = 0.0;     /* Detection threshold: -log10(NFA) > log_eps     */
-  double density_th = 0.7;  /* Minimal density of region points in rectangle. */
-  constexpr int n_bins = 1024;        /* Number of bins in pseudo-ordering of gradient
+  double density_th = 0.7; /* Minimal density of region points in rectangle. */
+  constexpr int n_bins = 1024; /* Number of bins in pseudo-ordering of gradient
                                modulus.                                       */
 
   double prev_grad_val = UPM_GRADIENT_THRESHOLD_LSD;
   UPM_GRADIENT_THRESHOLD_LSD = gradientThreshold;
   double *result = LineSegmentDetection(n_out, img, X, Y, scale, sigma_scale, quant,
-                              ang_th, log_eps, density_th, n_bins, false,
-                              nullptr, nullptr, nullptr, nullptr, nullptr);
+                                        ang_th, log_eps, density_th, n_bins, false,
+                                        nullptr, nullptr, nullptr, nullptr, nullptr);
   UPM_GRADIENT_THRESHOLD_LSD = prev_grad_val;
   return result;
 }
+
 /*----------------------------------------------------------------------------*/
