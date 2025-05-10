@@ -1041,117 +1041,6 @@ static double rect_nfa(struct rect *rec, Image<double>* angles, double logNT) {
 }
 
 /*----------------------------------------------------------------------------*/
-/*----------------------- 'list of n-tuple' data type ------------------------*/
-/*----------------------------------------------------------------------------*/
-
-/*----------------------------------------------------------------------------*/
-/** 'list of n-tuple' data type
-
-    The i-th component of the j-th n-tuple of an n-tuple list 'ntl'
-    is accessed with:
-
-      ntl->values[ i + j * ntl->dim ]
-
-    The dimension of the n-tuple (n) is:
-
-      ntl->dim
-
-    The number of n-tuples in the list is:
-
-      ntl->size
-
-    The maximum number of n-tuples that can be stored in the
-    list with the allocated memory at a given time is given by:
-
-      ntl->max_size
- */
-typedef struct ntuple_list_s {
-  unsigned int size;
-  unsigned int max_size;
-  unsigned int dim;
-  double *values;
-} *ntuple_list;
-
-/*----------------------------------------------------------------------------*/
-/** Free memory used in n-tuple 'in'.
- */
-static void free_ntuple_list(ntuple_list in) {
-  if (in == nullptr || in->values == nullptr)
-    error("free_ntuple_list: invalid n-tuple input.");
-  free((void *) in->values);
-  free((void *) in);
-}
-
-/*----------------------------------------------------------------------------*/
-/** Create an n-tuple list and allocate memory for one element.
-    @param dim the dimension (n) of the n-tuple.
- */
-static ntuple_list new_ntuple_list(unsigned int dim) {
-  ntuple_list n_tuple;
-
-  /* check parameters */
-  if (dim == 0) error("new_ntuple_list: 'dim' must be positive.");
-
-  /* get memory for list structure */
-  n_tuple = (ntuple_list) malloc(sizeof(struct ntuple_list_s));
-  if (n_tuple == nullptr) error("not enough memory.");
-
-  /* initialize list */
-  n_tuple->size = 0;
-  n_tuple->max_size = 1;
-  n_tuple->dim = dim;
-
-  /* get memory for tuples */
-  n_tuple->values = (double *) malloc(dim * n_tuple->max_size * sizeof(double));
-  if (n_tuple->values == nullptr) error("not enough memory.");
-
-  return n_tuple;
-}
-
-/*----------------------------------------------------------------------------*/
-/** Enlarge the allocated memory of an n-tuple list.
- */
-static void enlarge_ntuple_list(ntuple_list n_tuple) {
-  /* check parameters */
-  if (n_tuple == nullptr || n_tuple->values == nullptr || n_tuple->max_size == 0)
-    error("enlarge_ntuple_list: invalid n-tuple.");
-
-  /* duplicate number of tuples */
-  n_tuple->max_size *= 2;
-
-  /* realloc memory */
-  n_tuple->values = (double *) realloc((void *) n_tuple->values,
-                                       n_tuple->dim * n_tuple->max_size * sizeof(double));
-  if (n_tuple->values == nullptr) error("not enough memory.");
-}
-
-/*----------------------------------------------------------------------------*/
-/** Add a 7-tuple to an n-tuple list.
- */
-static void add_7tuple(ntuple_list out, double v1, double v2, double v3,
-                       double v4, double v5, double v6, double v7) {
-  /* check parameters */
-  if (out == nullptr) error("add_7tuple: invalid n-tuple input.");
-  if (out->dim != 7) error("add_7tuple: the n-tuple must be a 7-tuple.");
-
-  /* if needed, alloc more tuples to 'out' */
-  if (out->size == out->max_size) enlarge_ntuple_list(out);
-  if (out->values == nullptr) error("add_7tuple: invalid n-tuple input.");
-
-  /* add new 7-tuple */
-  out->values[out->size * out->dim + 0] = v1;
-  out->values[out->size * out->dim + 1] = v2;
-  out->values[out->size * out->dim + 2] = v3;
-  out->values[out->size * out->dim + 3] = v4;
-  out->values[out->size * out->dim + 4] = v5;
-  out->values[out->size * out->dim + 5] = v6;
-  out->values[out->size * out->dim + 6] = v7;
-
-  /* update number of tuples counter */
-  out->size++;
-}
-
-/*----------------------------------------------------------------------------*/
 /*----------------------------- Gaussian filter ------------------------------*/
 /*----------------------------------------------------------------------------*/
 
@@ -1163,27 +1052,22 @@ static void add_7tuple(ntuple_list out, double v1, double v2, double v3,
     in the middle point between values 'kernel->values[0]'
     and 'kernel->values[1]'.
  */
-static void gaussian_kernel(ntuple_list kernel, double sigma, double mean) {
+static void gaussian_kernel(std::vector<double>& kernel, double sigma, double mean) {
   double sum = 0.0;
   double val;
   unsigned int i;
 
   /* check parameters */
-  if (kernel == nullptr || kernel->values == nullptr)
-    error("gaussian_kernel: invalid n-tuple 'kernel'.");
   if (sigma <= 0.0) error("gaussian_kernel: 'sigma' must be positive.");
 
-  /* compute Gaussian kernel */
-  if (kernel->max_size < 1) enlarge_ntuple_list(kernel);
-  kernel->size = 1;
-  for (i = 0; i < kernel->dim; i++) {
+  for (i = 0; i < kernel.size(); i++) {
     val = ((double) i - mean) / sigma;
-    kernel->values[i] = exp(-0.5 * val * val);
-    sum += kernel->values[i];
+    kernel[i] = exp(-0.5 * val * val);
+    sum += kernel[i];
   }
 
   /* normalization */
-  if (sum >= 0.0) for (i = 0; i < kernel->dim; i++) kernel->values[i] /= sum;
+  if (sum >= 0.0) for (i = 0; i < kernel.size(); i++) kernel[i] /= sum;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -1228,7 +1112,6 @@ static Image<double>* gaussian_sampler(Image<double>* in, double scale,
                                      double sigma_scale) {
   Image<double>* aux = nullptr;
   Image<double>* out = nullptr;
-  ntuple_list kernel;
   unsigned int N, M, h, n, x, y, i;
   int xc, yc, j, double_x_size, double_y_size;
   double sigma, xx, yy, sum, prec;
@@ -1262,7 +1145,7 @@ static Image<double>* gaussian_sampler(Image<double>* in, double scale,
   prec = 3.0;
   h = (unsigned int) ceil(sigma * sqrt(2.0 * prec * log(10.0)));
   n = 1 + 2 * h; /* kernel size */
-  kernel = new_ntuple_list(n);
+  std::vector<double> kernel = std::vector<double>(n, 0);
 
   /* auxiliary double image size variables */
   double_x_size = (int) (2 * in->xsize);
@@ -1285,7 +1168,7 @@ static Image<double>* gaussian_sampler(Image<double>* in, double scale,
 
     for (y = 0; y < aux->ysize; y++) {
       sum = 0.0;
-      for (i = 0; i < kernel->dim; i++) {
+      for (i = 0; i < kernel.size(); i++) {
         j = xc - h + i;
 
         /* symmetry boundary condition */
@@ -1293,7 +1176,7 @@ static Image<double>* gaussian_sampler(Image<double>* in, double scale,
         while (j >= double_x_size) j -= double_x_size;
         if (j >= (int) in->xsize) j = double_x_size - 1 - j;
 
-        sum += in->data[j + y * in->xsize] * kernel->values[i];
+        sum += in->data[j + y * in->xsize] * kernel[i];
       }
       aux->data[x + y * aux->xsize] = sum;
     }
@@ -1316,7 +1199,7 @@ static Image<double>* gaussian_sampler(Image<double>* in, double scale,
 
     for (x = 0; x < out->xsize; x++) {
       sum = 0.0;
-      for (i = 0; i < kernel->dim; i++) {
+      for (i = 0; i < kernel.size(); i++) {
         j = yc - h + i;
 
         /* symmetry boundary condition */
@@ -1324,14 +1207,12 @@ static Image<double>* gaussian_sampler(Image<double>* in, double scale,
         while (j >= double_y_size) j -= double_y_size;
         if (j >= (int) in->ysize) j = double_y_size - 1 - j;
 
-        sum += aux->data[x + j * aux->xsize] * kernel->values[i];
+        sum += aux->data[x + j * aux->xsize] * kernel[i];
       }
       out->data[x + y * out->xsize] = sum;
     }
   }
 
-  /* free memory */
-  free_ntuple_list(kernel);
   delete aux;
   return out;
 }
