@@ -129,7 +129,7 @@ double UPM_GRADIENT_THRESHOLD_LSD = 5.2262518595055063;
  */
 struct coorlist {
   unsigned int x, y;
-  struct coorlist *next;
+  coorlist *next;
 };
 
 struct point { int x, y; };
@@ -325,8 +325,6 @@ void ll_angle(Image<double>& in, double threshold,
   /* the rest of the variables are used for pseudo-ordering
      the gradient magnitude values */
   int list_count = 0;
-  struct coorlist *start;
-  struct coorlist *end;
   double max_grad = 0.0;
 
   /* check parameters */
@@ -342,14 +340,15 @@ void ll_angle(Image<double>& in, double threshold,
   unsigned int p = in.xsize;
 
   /* get memory for "ordered" list of pixels */
-  struct coorlist *list = (struct coorlist *) calloc(n * p, sizeof(struct coorlist));
+  coorlist* list = static_cast<coorlist *>(calloc(n * p, sizeof(struct coorlist)));
+
   *mem_p = (void *) list;
+  coorlist** range_l_s = static_cast<coorlist**>(calloc((size_t) n_bins,
+                                          sizeof(struct coorlist *)));
+  coorlist** range_l_e = static_cast<coorlist**>(calloc((size_t) n_bins,
+                                          sizeof(struct coorlist *)));
 
-  /* array of pointers to start of bin list */
-  std::vector<struct coorlist*> range_l_s(n_bins);
-  std::vector<struct coorlist*> range_l_e(n_bins);
-
-  if (list == nullptr)
+  if (list == nullptr || range_l_s == nullptr || range_l_e == nullptr)
     error("not enough memory.");
   for (unsigned int i = 0; i < n_bins; i++) range_l_s[i] = range_l_e[i] = nullptr;
 
@@ -357,17 +356,17 @@ void ll_angle(Image<double>& in, double threshold,
     grad_angle_orientation(in, threshold, g, modgrad);
   }
 
-  for (unsigned i = 0; i < modgrad->xsize * modgrad->ysize; i++) {
-    if(max_grad < modgrad->data[i]) max_grad = modgrad->data[i];
+  for (unsigned int i = 0; i < modgrad->xsize * modgrad->ysize; i++) {
+    if (modgrad->data[i] > max_grad) max_grad = modgrad->data[i];
   }
 
   /* compute histogram of gradient values */
-  for (unsigned int x = 0; x < p - 1; x += stride_ll_angle_x) {
+  for (unsigned int x = 0; x < p - 1; x += stride_ll_angle_x)
     for (unsigned int y = 0; y < n - 1; y += stride_ll_angle_y) {
       double norm = modgrad->data[y * p + x];
 
       /* store the point in the right bin according to its norm */
-      unsigned i = static_cast<unsigned int>(norm * static_cast<double>(n_bins) / max_grad);
+      unsigned int i = static_cast<unsigned int>(norm * static_cast<double>(n_bins) / max_grad);
       if (i >= n_bins) i = n_bins - 1;
       if (range_l_e[i] == nullptr)
         range_l_s[i] = range_l_e[i] = list + list_count++;
@@ -375,11 +374,10 @@ void ll_angle(Image<double>& in, double threshold,
         range_l_e[i]->next = list + list_count;
         range_l_e[i] = list + list_count++;
       }
-      range_l_e[i]->x = x;
-      range_l_e[i]->y = y;
+      range_l_e[i]->x = (int) x;
+      range_l_e[i]->y = (int) y;
       range_l_e[i]->next = nullptr;
     }
-  }
 
   /* Make the list of pixels (almost) ordered by norm value.
      It starts by the larger bin, so the list starts by the
@@ -388,9 +386,9 @@ void ll_angle(Image<double>& in, double threshold,
    */
   unsigned int i;
   for (i = n_bins - 1; i > 0 && range_l_s[i] == nullptr; i--);
-  start = range_l_s[i];
-  end = range_l_e[i];
-  if (start != nullptr) {
+  coorlist* start = range_l_s[i];
+  coorlist* end = range_l_e[i];
+  if (start != nullptr)
     while (i > 0) {
       --i;
       if (range_l_s[i] != nullptr) {
@@ -398,9 +396,11 @@ void ll_angle(Image<double>& in, double threshold,
         end = range_l_e[i];
       }
     }
-  }
-
   *list_p = start;
+
+  /* free memory */
+  free((void *) range_l_s);
+  free((void *) range_l_e);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -907,7 +907,7 @@ static void ri_inc(rect_iter *i) {
 
     See details in \ref rect_iter
  */
-static rect_iter *ri_ini(struct Rectangle *r) {
+static rect_iter *ri_ini(Rectangle *r) {
   double vx[4], vy[4];
   rect_iter *i;
 
@@ -1227,7 +1227,7 @@ static Image<double> gaussian_sampler(Image<double>& in, double scale,
     When |Ixx| > |Iyy| we use the first, otherwise the second (just to
     get better numeric precision).
  */
-static double get_theta(struct point *reg, int reg_size, double x, double y,
+static double get_theta(point *reg, int reg_size, double x, double y,
                         Image<double>* modgrad, double reg_angle, double prec) {
   double Ixx = 0.0;
   double Iyy = 0.0;
@@ -1266,7 +1266,7 @@ static double get_theta(struct point *reg, int reg_size, double x, double y,
 /*----------------------------------------------------------------------------*/
 /** Computes a rectangle that covers a region of points.
  */
-static void region2rect(struct point *reg, int reg_size,
+static void region2rect(point *reg, int reg_size,
                         Image<double>* modgrad, double reg_angle,
                         double prec, double p, Rectangle *rec) {
 
@@ -1359,7 +1359,7 @@ static void region2rect(struct point *reg, int reg_size,
 /** Build a region of pixels that share the same angle, up to a
     tolerance 'prec', starting at point (x,y).
  */
-static void region_grow(int x, int y, Image<double>* angles, struct point *reg,
+static void region_grow(int x, int y, Image<double>* angles, point *reg,
                         int *reg_size, double *reg_angle, Image<char> *used,
                         double prec) {
 
@@ -1503,9 +1503,9 @@ static double rect_improve(Rectangle *rec, Image<double>* angles,
     starting point, until that leads to rectangle with the right
     density of region points or to discard the region if too small.
  */
-static int reduce_region_radius(struct point *reg, int *reg_size,
+static int reduce_region_radius(point *reg, int *reg_size,
                                 Image<double>* modgrad, double reg_angle,
-                                double prec, double p, struct Rectangle *rec,
+                                double prec, double p, Rectangle *rec,
                                 Image<char> *used, Image<double>* angles,
                                 double density_th) {
 
@@ -1576,8 +1576,8 @@ static int reduce_region_radius(struct point *reg, int *reg_size,
     produce a rectangle with the right density of region points,
     'reduce_region_radius' is called to try to satisfy this condition.
  */
-static int refine(struct point *reg, int *reg_size, Image<double>* modgrad,
-                  double reg_angle, double prec, double p, struct Rectangle *rec,
+static int refine(point *reg, int *reg_size, Image<double>* modgrad,
+                  double reg_angle, double prec, double p,  Rectangle *rec,
                   Image<char> *used, Image<double>* angles, double density_th) {
 
   /* check parameters */
@@ -1658,9 +1658,9 @@ double *LineSegmentDetection(int *n_out,
                              double * modgrad_ptr, double * angles_ptr,
                              int **reg_img, int *reg_x, int *reg_y) {
   Image<int> * region = nullptr;
-  struct coorlist *list_p, *list_pp;
+  coorlist *list_p, *list_pp;
   void *mem_p, *mem_pp;
-  struct point *reg;
+  point *reg;
   int ls_count = 0;                   /* line segments are numbered 1,2,3,... */
 
   /* check parameters */
@@ -1747,7 +1747,7 @@ double *LineSegmentDetection(int *n_out,
     region = new Image<int>(angles->xsize, angles->ysize, 0);
   auto used = new Image<char>(xsize, ysize, static_cast<char>(0));
 
-  reg = static_cast<struct point*>(malloc((size_t) (xsize * ysize) * sizeof(struct point)));
+  reg = static_cast<point*>(malloc((size_t) (xsize * ysize) * sizeof(point)));
   if (reg == nullptr) error("not enough memory!");
 
   /* search for line segments */
