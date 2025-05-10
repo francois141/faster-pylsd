@@ -669,8 +669,28 @@ static double nfa(int n, int k, double p, double logNT) {
 /*----------------------------------------------------------------------------*/
 /** Rectangle structure: line segment with width.
  */
-class rect {
+class Rectangle {
 public:
+
+  [[nodiscard]] Rectangle() = default;
+
+  [[nodiscard]] Rectangle(const double x1, const double y1, const double x2, const double y2, const double width,
+    const double x, const double y, const double theta, const double dx, const double dy, const double prec,
+    const double p)
+    : x1(x1),
+      y1(y1),
+      x2(x2),
+      y2(y2),
+      width(width),
+      x(x),
+      y(y),
+      theta(theta),
+      dx(dx),
+      dy(dy),
+      prec(prec),
+      p(p) {
+  }
+
   double x1, y1, x2, y2;  /* first and second point of the line segment */
   double width;        /* rectangle width */
   double x, y;          /* center of the rectangle */
@@ -678,30 +698,13 @@ public:
   double dx, dy;        /* (dx,dy) is vector oriented as the line segment */
   double prec;         /* tolerance angle */
   double p;            /* probability of a point with angle within 'prec' */
+
+
+  Rectangle& operator=(const Rectangle& other) {
+    Rectangle r = Rectangle(other.x1, other.y1, other.x2, other.y2, other.width, other.x, other.y, other.theta, other.dx, other.dy, other.prec, other.p);
+    return r;
+  }
 };
-
-/*----------------------------------------------------------------------------*/
-/** Copy one rectangle structure to another.
- */
-// TODO: Write as a copy constructor
-static void rect_copy(rect *in, rect *out) {
-  /* check parameters */
-  if (in == nullptr || out == nullptr) error("rect_copy: invalid 'in' or 'out'.");
-
-  /* copy values */
-  out->x1 = in->x1;
-  out->y1 = in->y1;
-  out->x2 = in->x2;
-  out->y2 = in->y2;
-  out->width = in->width;
-  out->x = in->x;
-  out->y = in->y;
-  out->theta = in->theta;
-  out->dx = in->dx;
-  out->dy = in->dy;
-  out->prec = in->prec;
-  out->p = in->p;
-}
 
 /*----------------------------------------------------------------------------*/
 /** Rectangle points iterator.
@@ -904,7 +907,7 @@ static void ri_inc(rect_iter *i) {
 
     See details in \ref rect_iter
  */
-static rect_iter *ri_ini(struct rect *r) {
+static rect_iter *ri_ini(struct Rectangle *r) {
   double vx[4], vy[4];
   rect_iter *i;
 
@@ -973,7 +976,7 @@ static rect_iter *ri_ini(struct rect *r) {
 /*----------------------------------------------------------------------------*/
 /** Compute a rectangle's NFA value.
  */
-static double rect_nfa(struct rect *rec, Image<double>* angles, double logNT) {
+static double rect_nfa(Rectangle *rec, Image<double>* angles, double logNT) {
   int pts = 0;
   int alg = 0;
 
@@ -1265,7 +1268,7 @@ static double get_theta(struct point *reg, int reg_size, double x, double y,
  */
 static void region2rect(struct point *reg, int reg_size,
                         Image<double>* modgrad, double reg_angle,
-                        double prec, double p, struct rect *rec) {
+                        double prec, double p, Rectangle *rec) {
 
   /* check parameters */
   if (reg == nullptr) error("region2rect: invalid region.");
@@ -1349,7 +1352,7 @@ static void region2rect(struct point *reg, int reg_size,
      zero. But that corresponds to a one pixels width transition in
      the image.
    */
-  if (rec->width < 1.0) rec->width = 1.0;
+  rec->width = std::max(rec->width, 1.0);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -1404,7 +1407,7 @@ static void region_grow(int x, int y, Image<double>* angles, struct point *reg,
 /** Try some rectangles variations to improve NFA value. Only if the
     rectangle is not meaningful (i.e., log_nfa <= log_eps).
  */
-static double rect_improve(struct rect *rec, Image<double>* angles,
+static double rect_improve(Rectangle *rec, Image<double>* angles,
                            double logNT, double log_eps) {
   double delta = 0.5;
   double delta_2 = delta / 2.0;
@@ -1414,28 +1417,27 @@ static double rect_improve(struct rect *rec, Image<double>* angles,
   if (log_nfa > log_eps) return log_nfa;
 
   /* try finer precisions */
-  struct rect r;
-  rect_copy(rec, &r);
+  Rectangle r = *rec;
   for (int n = 0; n < 5; n++) {
     r.p /= 2.0;
     r.prec = r.p * M_PI;
     double log_nfa_new = rect_nfa(&r, angles, logNT);
     if (log_nfa_new > log_nfa) {
       log_nfa = log_nfa_new;
-      rect_copy(&r, rec);
+      *rec = r;
     }
   }
 
   if (log_nfa > log_eps) return log_nfa;
 
   /* try to reduce width */
-  rect_copy(rec, &r);
+  r = *rec;
   for (int n = 0; n < 5; n++) {
     if ((r.width - delta) >= 0.5) {
       r.width -= delta;
       double log_nfa_new = rect_nfa(&r, angles, logNT);
       if (log_nfa_new > log_nfa) {
-        rect_copy(&r, rec);
+        *rec = r;
         log_nfa = log_nfa_new;
       }
     }
@@ -1444,7 +1446,7 @@ static double rect_improve(struct rect *rec, Image<double>* angles,
   if (log_nfa > log_eps) return log_nfa;
 
   /* try to reduce one side of the rectangle */
-  rect_copy(rec, &r);
+  r = *rec;
   for (int n = 0; n < 5; n++) {
     if ((r.width - delta) >= 0.5) {
       r.x1 += -r.dy * delta_2;
@@ -1454,7 +1456,7 @@ static double rect_improve(struct rect *rec, Image<double>* angles,
       r.width -= delta;
       double log_nfa_new = rect_nfa(&r, angles, logNT);
       if (log_nfa_new > log_nfa) {
-        rect_copy(&r, rec);
+        *rec = r;
         log_nfa = log_nfa_new;
       }
     }
@@ -1463,7 +1465,7 @@ static double rect_improve(struct rect *rec, Image<double>* angles,
   if (log_nfa > log_eps) return log_nfa;
 
   /* try to reduce the other side of the rectangle */
-  rect_copy(rec, &r);
+  r = *rec;
   for (int n = 0; n < 5; n++) {
     if ((r.width - delta) >= 0.5) {
       r.x1 -= -r.dy * delta_2;
@@ -1473,7 +1475,7 @@ static double rect_improve(struct rect *rec, Image<double>* angles,
       r.width -= delta;
       double log_nfa_new = rect_nfa(&r, angles, logNT);
       if (log_nfa_new > log_nfa) {
-        rect_copy(&r, rec);
+        *rec = r;
         log_nfa = log_nfa_new;
       }
     }
@@ -1482,14 +1484,14 @@ static double rect_improve(struct rect *rec, Image<double>* angles,
   if (log_nfa > log_eps) return log_nfa;
 
   /* try even finer precisions */
-  rect_copy(rec, &r);
+  r = *rec;
   for (int n = 0; n < 5; n++) {
     r.p /= 2.0;
     r.prec = r.p * M_PI;
     double log_nfa_new = rect_nfa(&r, angles, logNT);
     if (log_nfa_new > log_nfa) {
       log_nfa = log_nfa_new;
-      rect_copy(&r, rec);
+      *rec = r;
     }
   }
 
@@ -1503,7 +1505,7 @@ static double rect_improve(struct rect *rec, Image<double>* angles,
  */
 static int reduce_region_radius(struct point *reg, int *reg_size,
                                 Image<double>* modgrad, double reg_angle,
-                                double prec, double p, struct rect *rec,
+                                double prec, double p, struct Rectangle *rec,
                                 Image<char> *used, Image<double>* angles,
                                 double density_th) {
 
@@ -1575,7 +1577,7 @@ static int reduce_region_radius(struct point *reg, int *reg_size,
     'reduce_region_radius' is called to try to satisfy this condition.
  */
 static int refine(struct point *reg, int *reg_size, Image<double>* modgrad,
-                  double reg_angle, double prec, double p, struct rect *rec,
+                  double reg_angle, double prec, double p, struct Rectangle *rec,
                   Image<char> *used, Image<double>* angles, double density_th) {
 
   /* check parameters */
@@ -1765,7 +1767,7 @@ double *LineSegmentDetection(int *n_out,
     {
       // We don't want to share those value accross the threads
       // Otherwise the threads will fights for it
-      rect rec;
+      Rectangle rec;
       int reg_size;
       double reg_angle;
       /* find the region of connected point and ~equal angle */
