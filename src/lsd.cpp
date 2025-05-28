@@ -1705,15 +1705,13 @@ double *LineSegmentDetection(int *n_out,
     Image<double> scaled_image = gaussian_sampler(image, scale, sigma_scale);
     if (grad_nfa) {
       ll_angle(scaled_image, rho, &list_pp, &mem_pp, img_gradnorm, img_grad_angle, (unsigned int) n_bins);
-    } else {
-      ll_angle(scaled_image, rho, &list_p, &mem_p, modgrad, angles, (unsigned int) n_bins);
     }
+    ll_angle(scaled_image, rho, &list_p, &mem_p, modgrad, angles, (unsigned int) n_bins);
   } else {
     if (grad_nfa) {
       ll_angle(image, rho, &list_pp, &mem_pp, img_gradnorm, img_grad_angle, (unsigned int) n_bins);
-    } else {
-      ll_angle(image, rho, &list_p, &mem_p, modgrad, angles, (unsigned int) n_bins);
     }
+    ll_angle(image, rho, &list_p, &mem_p, modgrad, angles, (unsigned int) n_bins);
   }
 
   const unsigned int xsize = angles->xsize;
