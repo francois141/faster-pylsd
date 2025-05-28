@@ -507,7 +507,7 @@ double *LineSegmentDetection(int *n_out,
   void *mem_p, *mem_pp;
   struct point *reg;
   int min_reg_size, i;
-  unsigned int xsize, ysize;
+  unsigned int xsize = 1024, ysize = 768;
   double rho, reg_angle, prec, p, log_nfa, logNT;
   int ls_count = 0;                   /* line segments are numbered 1,2,3,... */
 
@@ -531,6 +531,24 @@ double *LineSegmentDetection(int *n_out,
   rho = UPM_GRADIENT_THRESHOLD_LSD;
   // std::cout << "LSD Gradient threshold: " << rho << std::endl;
 
+  /* Number of Tests - NT
+
+   The theoretical number of tests is Np.(XY)^(5/2)
+   where X and Y are number of columns and rows of the image.
+   Np corresponds to the number of angle precisions considered.
+   As the procedure 'rect_improve' tests 5 times to halve the
+   angle precision, and 5 more times after improving other factors,
+   11 different precision values are potentially tested. Thus,
+   the number of tests is
+     11 * (X*Y)^(5/2)
+   whose logarithm value is
+     log10(11) + 5/2 * (log10(X) + log10(Y)).
+*/
+  logNT = 5.0 * (log10((double) xsize) + log10((double) ysize)) / 2.0
+    + log10(11.0);
+  min_reg_size = (int) (-logNT / log10(p)); /* minimal number of points in region
+                                             that can give a meaningful event */
+
   image_double modgrad{}, angles{};
   image_double img_gradnorm{}, img_grad_angle{};
   if (modgrad_ptr) {
@@ -542,55 +560,33 @@ double *LineSegmentDetection(int *n_out,
 
   /* load and scale image (if necessary) and compute angle at each pixel */
   image = new_image_double_ptr((unsigned int) X, (unsigned int) Y, img);
-  auto start = std::chrono::high_resolution_clock::now();
 
-  // TODO: Integrade this part
-  // scaled_image = gaussian_sampler(image, scale, sigma_scale);
-
-  if (grad_nfa) {
-    ll_angle(image, rho, &list_pp, &mem_pp, img_gradnorm, img_grad_angle, (unsigned int) n_bins);
-  } else {
-    ll_angle(image, rho, &list_p, &mem_p, modgrad, angles, (unsigned int) n_bins);
+  std::vector<point*> registers_vector(numberThreads);
+  for(int i = 0; i < numberThreads;i++) {
+    registers_vector[i] = static_cast<point *>(malloc((xsize * ysize) * sizeof(point)));
   }
-
-  xsize = angles->xsize;
-  ysize = angles->ysize;
-
-  /* Number of Tests - NT
-
-     The theoretical number of tests is Np.(XY)^(5/2)
-     where X and Y are number of columns and rows of the image.
-     Np corresponds to the number of angle precisions considered.
-     As the procedure 'rect_improve' tests 5 times to halve the
-     angle precision, and 5 more times after improving other factors,
-     11 different precision values are potentially tested. Thus,
-     the number of tests is
-       11 * (X*Y)^(5/2)
-     whose logarithm value is
-       log10(11) + 5/2 * (log10(X) + log10(Y)).
-  */
-  logNT = 5.0 * (log10((double) xsize) + log10((double) ysize)) / 2.0
-      + log10(11.0);
-  min_reg_size = (int) (-logNT / log10(p)); /* minimal number of points in region
-                                             that can give a meaningful event */
-
 
   /* initialize some structures */
   if (reg_img != nullptr && reg_x != nullptr && reg_y != nullptr) /* save region data */
     region = new_image_int_ini(angles->xsize, angles->ysize, 0);
   used = new_image_char_ini(xsize, ysize, NOTUSED);
-  reg = (struct point *) calloc((size_t) (xsize * ysize), sizeof(struct point));
+
+  reg = static_cast<struct point*>(malloc((size_t) (xsize * ysize) * sizeof(struct point)));
   if (reg == nullptr) error("not enough memory!");
 
+  auto start = std::chrono::high_resolution_clock::now();
+
+  // scaled_image = gaussian_sampler(image, scale, sigma_scale);
+  ll_angle(image, rho, &list_p, &mem_p, modgrad, angles, (unsigned int) n_bins);
+
+  xsize = angles->xsize;
+  ysize = angles->ysize;
 
   std::vector<point> point_values;
+  int cnt = 0;
   for (; list_p != nullptr; list_p = list_p->next) {
+    if(cnt++ >= 250000) break;
     point_values.push_back(point{list_p->x, list_p->y});
-  }
-
-  std::vector<point*> registers_vector(numberThreads);
-  for(int i = 0; i < numberThreads;i++) {
-    registers_vector[i] = static_cast<point *>(calloc((xsize * ysize), sizeof(point)));
   }
 
   const int currSize = point_values.size();
