@@ -146,7 +146,7 @@
 double UPM_GRADIENT_THRESHOLD_LSD = 5.2262518595055063;
 
 
-const unsigned int numberThreads = 16;
+const unsigned int numberThreads = 24;
 
 /*----------------------------------------------------------------------------*/
 /** Chained list of coordinates.
@@ -337,7 +337,7 @@ static image_int new_image_int_ini(unsigned int xsize, unsigned int ysize,
   unsigned int i;
 
   /* initialize */
-  for (i = 0; i < N; i++) image->data[i] = fill_value;
+  // for (i = 0; i < N; i++) image->data[i] = fill_value;
 
   return image;
 }
@@ -443,7 +443,7 @@ static void grad_angle_orientation(image_double in, double threshold, image_doub
   /* compute gradient on the remaining pixels */
   std::vector<std::pair<int,int>> ranges(numberThreads);
 
-  int stride = p / numberThreads;
+  int stride = ceil(((double)p) / numberThreads);
   std::function worker = [&](int idx) {
     unsigned int adr;
     double com1, com2, gx, gy, norm, norm2;
