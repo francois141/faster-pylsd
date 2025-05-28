@@ -255,8 +255,8 @@ static void grad_angle_orientation(Image<double> &in, double threshold, Image<do
   /* compute gradient on the remaining pixels */
   std::vector<std::pair<int, int> > ranges(numberThreads);
 
-  int stride = p / numberThreads;
-  std::function worker = [&](int idx) {
+  int stride = std::ceil(p / static_cast<double>(numberThreads));
+  std::function worker = [&](const int idx) {
     auto [from, to] = std::make_pair(idx * stride + 1, std::min((idx + 1) * stride + 1, static_cast<int>(p)));
     for (int x = from; x < to; x++) {
       for (int y = 1; y < n; y++) {
