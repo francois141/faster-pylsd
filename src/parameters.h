@@ -3,9 +3,9 @@
 
 constexpr bool with_gaussian = false;
 
-constexpr unsigned int stride_ll_angle_x = 4;
-constexpr unsigned int stride_ll_angle_y = 4;
+constexpr unsigned int stride_ll_angle_x = 1;
+constexpr unsigned int stride_ll_angle_y = 1;
 
-constexpr unsigned int numberThreads = 16;
+constexpr unsigned int numberThreads = 1;
 
 # endif
