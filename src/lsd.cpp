@@ -113,8 +113,8 @@ constexpr bool with_gaussian = false;
 
 constexpr unsigned int stride_ll_angle_x = 2;
 constexpr unsigned int stride_ll_angle_y = 2;
-constexpr unsigned int numberThreads = 16;
-constexpr unsigned int early_stop_iterations = 100000;
+constexpr unsigned int numberThreads = 2;
+constexpr unsigned int early_stop_iterations = 25000;
 
 constexpr double m_ln10 = 2.30258509299404568402;
 constexpr double m_pi = 3.14159265358979323846;
@@ -250,6 +250,8 @@ static void grad_angle_orientation(Image<double>& in, double threshold, Image<do
   /* 'undefined' on the up and left boundaries */
   for (int x = 0; x < p; x++) g->data[x] = NOTDEF;
   for (int y = 0; y < n; y++) g->data[p * y] = NOTDEF;
+
+  const unsigned int numberThreads = 16;
 
   /* compute gradient on the remaining pixels */
   std::vector<std::pair<int,int>> ranges(numberThreads);
@@ -1840,7 +1842,9 @@ double *LineSegmentDetection(int *n_out,
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> duration = end - start;
 
-  std::cout << "Time elapsed: " << duration.count() << " seconds\n";
+  if(false) {
+    std::cout << "Time elapsed: " << duration.count() << " seconds\n";
+  }
 
   angles_ptr ? free(angles) : delete angles;
   modgrad_ptr ? free(modgrad) : delete modgrad;
@@ -1849,7 +1853,7 @@ double *LineSegmentDetection(int *n_out,
     delete img_grad_angle;
   }
 
-  delete used;
+
   free((void *) reg);
   free((void *) mem_p);
   if (grad_nfa)
